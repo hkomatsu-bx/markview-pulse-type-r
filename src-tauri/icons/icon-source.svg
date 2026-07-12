@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <!-- Markview Pulse Type R アプリアイコン（Type R: 赤角丸 ＋ 白 M / ↓ / 脈動）。
+       背景=#E0001B（Type R レッド）、M=Markdown、下矢印=保存検知、
+       脈動ライン=ライブ更新（FR-02）。タイトルバー/タスクバー優先のリッチ構成。
+       16px（エクスプローラー詳細表示＝タイトルバーと同一サイズ枠）では密になるが、
+       タイトルバー優先のため許容する割り切り。
+       「M」はフォント依存（resvg のセリフ体フォールバック）を避けるため
+       ストロークのポリラインでゴシック体相当をベクター描画する。 -->
+  <rect width="256" height="256" rx="60" fill="#E0001B"></rect>
+  <polyline points="44,158 44,62 94,120 144,62 144,158" fill="none" stroke="#FFFFFF" stroke-width="28" stroke-linecap="round" stroke-linejoin="round"></polyline>
+  <line x1="200" y1="110" x2="200" y2="156" stroke="#FFFFFF" stroke-width="18" stroke-linecap="round"></line>
+  <polyline points="182,140 200,156 218,140" fill="none" stroke="#FFFFFF" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"></polyline>
+  <path d="M72 184 H112 l5 -4 l4 4 l6 -14 l6 28 l5 -14 l4 0 H184" fill="none" stroke="#FFFFFF" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>

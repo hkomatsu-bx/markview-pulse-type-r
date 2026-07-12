@@ -1,0 +1,47 @@
+[package]
+# 配布 exe 名の源（bundle.active=false のため target/release/<name>.exe が成果物）。
+# 表示名は tauri.conf.json の productName / window.title が担う。
+name = "mviewr"
+version = "1.0.0"
+description = "Markview Pulse Type R - Windows 向け Markdown プレビューア"
+authors = ["Markview Pulse Type R contributors"]
+edition = "2021"
+license = "MIT"
+# 実効 MSRV の下限。notify 8 系が引き込む notify-types 2.1.0 が rustc 1.85 を
+# 要求するため、それ未満ではビルド不可。実ビルド版は rust-toolchain.toml で固定。
+rust-version = "1.85"
+
+[lib]
+# Windows でバイナリ名と衝突しないよう _lib 接尾辞を付ける。
+name = "markview_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+notify = "8"
+thiserror = "2"
+tauri-plugin-opener = "2.5.4"
+
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+# 多重起動を防ぎ、2 回目以降の起動引数を既存インスタンスへ委譲する（デスクトップのみ）。
+tauri-plugin-single-instance = "2"
+
+# リリースプロファイルの最適化（単一 exe のサイズ縮小が主目的）。
+# Tauri 公式のサイズ削減推奨に準拠。Rust 側はファイル IO/監視/IPC のみで
+# ホットな数値ループが無いため opt-level は速度より "s"（サイズ）を選ぶ。
+# - strip: デバッグシンボル除去
+# - lto="fat": クレート横断のリンク時最適化（ビルド時間は増える）
+# - codegen-units=1: コード生成単位を 1 にして最適化余地を最大化
+# CPU マイクロアーキ最適化（target-cpu）は移植性を下げるため既定では入れない。
+# 必要時のみ build.ps1 の -CpuV3 で一時的に付与する。
+[profile.release]
+strip = true
+lto = "fat"
+codegen-units = 1
+opt-level = "s"

@@ -1,0 +1,893 @@
+/* Markview Pulse Type R - スタイル
+ *
+ * テーマ: [data-theme] 明示指定が無ければ prefers-color-scheme に追従（FR-08）。
+ * 差分: 本文中に span を重ねてインライン強調（FR-03）。
+ * 印刷: @media print でツールバー/タブを隠し本文だけを出す。
+ */
+
+:root {
+  --font-ui:
+    "Segoe UI Variable", "Segoe UI", "Yu Gothic UI", "Meiryo", system-ui,
+    sans-serif;
+  --font-mono: "Cascadia Code", "Consolas", "Yu Gothic", monospace;
+  --accent: #0067c0;
+  /* ブランドレッド（Type R）。主操作のプライマリに使用 */
+  --brand: #e0001b;
+  --brand-hover: #c20017;
+  /* 差分強調トグルのアクセント。ブランドレッドより若干ピンク寄りにして区別する。 */
+  --diff-accent: #e5336e;
+  --radius: 8px;
+  /* 本文最大幅（FR-12）。main.ts が #preview にプリセット値を反映する。 */
+  --content-max-width: 860px;
+  /* 本文（プレビュー/原文）の基準フォントサイズ。UI クロム（14px）より大きめに取り可読性を上げる。 */
+  --content-font-size: 16px;
+  /* 本文ズーム倍率（無次元）。main.ts が #content に実値を載せ、本文側で乗算する。 */
+  --content-zoom: 1;
+}
+
+/* ライト（既定 + 明示 light） */
+:root,
+:root[data-theme="light"] {
+  --bg: #f3f3f3;
+  --bg-elev: #ffffff;
+  --fg: #1b1b1b;
+  --fg-muted: #5c5c5c;
+  --border: #e0e0e0;
+  --code-bg: #f5f5f5;
+  --quote-bar: #c8c8c8;
+  --diff-add-bg: #e6f4ea;
+  --diff-add-fg: #137333;
+  --diff-del-bg: #fce8e6;
+  --diff-del-fg: #a50e0e;
+  /* コードハイライト（highlight.js）トークン色。明部: 主要トークンを識別しやすい多色系。 */
+  --hl-comment: #6a737d;
+  --hl-keyword: #cf222e;
+  --hl-string: #0a7b34;
+  --hl-number: #b35900;
+  --hl-function: #8250df;
+  --hl-title: #6639ba;
+  --hl-type: #1a7f8e;
+  --hl-built_in: #0550ae;
+  --hl-attr: #0550ae;
+  --hl-variable: #953800;
+  --hl-meta: #6a737d;
+  --hl-tag: #116329;
+  --hl-operator: #57606a;
+}
+
+/* ダーク（明示 dark） */
+:root[data-theme="dark"] {
+  --bg: #202020;
+  --bg-elev: #2b2b2b;
+  --fg: #e8e8e8;
+  --fg-muted: #a0a0a0;
+  --border: #3a3a3a;
+  --code-bg: #2b2b2b;
+  --quote-bar: #4a4a4a;
+  --diff-add-bg: #18341f;
+  --diff-add-fg: #6ee7a0;
+  --diff-del-bg: #3a1d1d;
+  --diff-del-fg: #f0a0a0;
+  /* コードハイライト（highlight.js）トークン色。暗部: 彩度を抑えた多色系。 */
+  --hl-comment: #8b949e;
+  --hl-keyword: #ff7b72;
+  --hl-string: #a5d6ff;
+  --hl-number: #ffab70;
+  --hl-function: #d2a8ff;
+  --hl-title: #d2a8ff;
+  --hl-type: #56d4dd;
+  --hl-built_in: #79c0ff;
+  --hl-attr: #79c0ff;
+  --hl-variable: #ffa657;
+  --hl-meta: #8b949e;
+  --hl-tag: #7ee787;
+  --hl-operator: #8b949e;
+}
+
+/* OS 追従（data-theme 未指定でダーク環境のとき） */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    --bg: #202020;
+    --bg-elev: #2b2b2b;
+    --fg: #e8e8e8;
+    --fg-muted: #a0a0a0;
+    --border: #3a3a3a;
+    --code-bg: #2b2b2b;
+    --quote-bar: #4a4a4a;
+    --diff-add-bg: #18341f;
+    --diff-add-fg: #6ee7a0;
+    --diff-del-bg: #3a1d1d;
+    --diff-del-fg: #f0a0a0;
+    /* コードハイライト（highlight.js）トークン色。暗部: 彩度を抑えた多色系。 */
+    --hl-comment: #8b949e;
+    --hl-keyword: #ff7b72;
+    --hl-string: #a5d6ff;
+    --hl-number: #ffab70;
+    --hl-function: #d2a8ff;
+    --hl-title: #d2a8ff;
+    --hl-type: #56d4dd;
+    --hl-built_in: #79c0ff;
+    --hl-attr: #79c0ff;
+    --hl-variable: #ffa657;
+    --hl-meta: #8b949e;
+    --hl-tag: #7ee787;
+    --hl-operator: #8b949e;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  font-family: var(--font-ui);
+  font-size: 14px;
+  color: var(--fg);
+  background: var(--bg);
+}
+
+/* ---- ツールバー（Fluent の Command Bar 風） ---- */
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--bg-elev);
+  border-bottom: 1px solid var(--border);
+}
+
+/* 補助操作（「…」メニュー等）を右端へ寄せる伸縮スペーサー */
+.toolbar .spacer {
+  flex: 1 1 auto;
+}
+
+/* ---- オーバーフロー（「…」）メニュー ---- */
+.more-wrap {
+  position: relative;
+}
+
+/* アイコンのみのボタン（「…」）。3 点は塗りで描く。 */
+.btn-icon .icon {
+  fill: currentColor;
+  stroke: none;
+}
+
+.more-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 256px;
+  padding: 4px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 4px 16px rgb(0 0 0 / 0.18);
+}
+
+/* メニュー項目: 横幅いっぱい・左寄せ。通常ボタンの体裁を踏襲しつつ整える。 */
+.more-menu .menu-item {
+  width: 100%;
+  justify-content: flex-start;
+}
+
+.more-menu .menu-item:hover {
+  background: var(--bg);
+}
+
+/* 非活性項目（例: 選択範囲が無いときのコピー、タブ未選択時の印刷/エディタ）。 */
+.more-menu .menu-item:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.more-menu .menu-item:disabled:hover {
+  background: transparent;
+}
+
+/* 右クリックのカスタムコンテキストメニュー: クリック座標へ固定配置する
+ * （left/top は JS が設定）。ダイアログ類より前面に出す。 */
+.context-menu {
+  position: fixed;
+  right: auto;
+  top: auto;
+  z-index: 40;
+}
+
+/* メニュー内の区切り線。 */
+.menu-sep {
+  height: 1px;
+  margin: 4px 2px;
+  background: var(--border);
+}
+
+/* テーマ切替（メニュー内の 3 分割セグメント）。横幅いっぱいに均等配置する。 */
+.menu-theme {
+  display: flex;
+  margin: 2px;
+}
+
+.menu-theme .seg-btn {
+  flex: 1;
+  justify-content: center;
+  padding: 5px 6px;
+  white-space: nowrap;
+}
+
+/* テーマは太陽/月/PC のアイコンのみ表示（ラベルは aria-label/title で担保）。
+ * 単一アイコンを中央寄せし、均等な当たり判定を確保する。 */
+.menu-theme .seg-btn-icon {
+  gap: 0;
+  padding: 6px 0;
+}
+
+.toolbar .sep {
+  width: 1px;
+  height: 20px;
+  background: var(--border);
+}
+
+/* アイコン（ラベル併記）。stroke=currentColor でテーマ・状態色に追従 */
+.icon {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* セグメント（プレビュー/差分）: 沈めたトラックに浮いた選択ピル（Fluent 風） */
+.seg {
+  display: inline-flex;
+  gap: 2px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 2px;
+}
+
+.seg-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  background: transparent;
+  color: var(--fg-muted);
+  padding: 5px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  font: inherit;
+}
+
+.seg-btn:hover {
+  color: var(--fg);
+}
+
+.seg-btn.is-active {
+  background: var(--bg-elev);
+  color: var(--fg);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.16);
+}
+
+/* ボタン: 既定はゴースト。主操作のみブランドレッドのソリッド */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--fg);
+  padding: 6px 12px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  font: inherit;
+}
+
+.btn:hover {
+  background: var(--bg);
+}
+
+.btn:active {
+  transform: translateY(0.5px);
+}
+
+.btn-accent {
+  background: var(--brand);
+  color: #fff;
+  border-color: var(--brand);
+  font-weight: 600;
+}
+
+.btn-accent:hover {
+  background: var(--brand-hover);
+  border-color: var(--brand-hover);
+}
+
+/* 差分強調トグル（FR-03）: ON で押下状態、原文モードでは disabled で淡色化。
+   アクセントはブランドレッドより若干ピンク寄り（--diff-accent）。 */
+.btn-toggle.is-active {
+  background: color-mix(in srgb, var(--diff-accent) 12%, transparent);
+  border-color: color-mix(in srgb, var(--diff-accent) 40%, transparent);
+  color: var(--diff-accent);
+  font-weight: 600;
+}
+
+.btn-toggle[disabled] {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.btn-toggle[disabled]:hover {
+  background: transparent;
+}
+
+/* 汎用の無効ボタン（例: エディタで開く＝タブ未選択時・FR-19）。 */
+.btn[disabled] {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ---- タブバー（FR-04） ---- */
+.tabbar {
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  padding: 0 8px;
+  background: var(--bg-elev);
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+}
+
+.tabbar:empty {
+  display: none;
+}
+
+.tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  max-width: 240px;
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: var(--radius) var(--radius) 0 0;
+  background: transparent;
+  color: var(--fg-muted);
+  cursor: pointer;
+  font: inherit;
+  white-space: nowrap;
+}
+
+.tab.is-active {
+  background: var(--bg);
+  color: var(--fg);
+  border-color: var(--border);
+}
+
+.tab .tab-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tab .tab-close {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  line-height: 1;
+  padding: 0 2px;
+}
+
+.tab .tab-close:hover {
+  color: var(--diff-del-fg);
+}
+
+/* ---- 本文スクロール領域 ---- */
+.scroll {
+  flex: 1;
+  overflow: auto;
+  padding: 24px 32px;
+}
+
+.empty-state {
+  max-width: 860px;
+  margin: 0 auto;
+  color: var(--fg-muted);
+  text-align: center;
+  padding-top: 15vh;
+}
+
+/* ---- ウェルカム画面（FR-06） ---- */
+.welcome {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  padding-top: 12vh;
+}
+
+/* ロゴ幅に合わせて縮むラッパ。バージョンバッジの位置基準にする。 */
+.welcome-logo {
+  position: relative;
+  display: inline-block;
+}
+
+.welcome-logo-svg {
+  display: block;
+  width: min(360px, 70vw);
+  height: auto;
+}
+
+/* ロゴ文字・バッジ。色はテーマへ追従（文字は本文色、バッジはブランドレッド地に白）。 */
+.logo-text {
+  fill: var(--fg);
+  font-family: var(--font-ui);
+}
+
+.logo-badge {
+  fill: var(--brand);
+}
+
+.logo-badge-text {
+  fill: #fff;
+  font-family: var(--font-ui);
+}
+
+/* ロゴ波形: 薄い全体トレース＋明るい走査パルス。reduced-motion で静止（NFR-06）。 */
+.logo-wave-base,
+.logo-wave-pulse {
+  fill: none;
+  stroke: var(--brand);
+  stroke-width: 6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.logo-wave-base {
+  opacity: 0.35;
+}
+
+.logo-wave-pulse {
+  stroke-dasharray: 10 100;
+  animation: logo-wave-sweep 2.4s linear infinite;
+}
+
+@keyframes logo-wave-sweep {
+  from {
+    stroke-dashoffset: 110;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .logo-wave-pulse {
+    animation: none;
+    stroke-dasharray: none;
+    opacity: 0;
+  }
+}
+
+/* バージョン番号: ロゴ右下に控えめなバッジとして表示。
+   等幅・低コントラストでブランド表示を邪魔しない。 */
+.welcome-version {
+  position: absolute;
+  right: 0;
+  bottom: -1.2em;
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  opacity: 0.55;
+  user-select: text;
+}
+
+.welcome-lead {
+  margin: 0;
+  font-size: 15px;
+}
+
+.welcome-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.welcome-hint {
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+/* ---- 原文（ソース）表示（FR-17 / FR-18 行番号） ---- */
+.source-view {
+  max-width: var(--content-max-width, 860px);
+  margin: 0 auto;
+  font-family: var(--font-mono);
+  /* 基準サイズ×ズーム倍率。原文はやや控えめ（0.95）に。 */
+  font-size: calc(
+    var(--content-font-size, 16px) * 0.95 * var(--content-zoom, 1)
+  );
+  line-height: 1.6;
+  background: var(--code-bg);
+  padding: 16px 18px;
+  border-radius: var(--radius);
+  /* 行番号カウンタの起点（FR-18）。 */
+  counter-reset: srcline;
+}
+
+/*
+ * 論理行（FR-18）。各行を block にして折り返しを許す。
+ * 行番号は ::before の生成内容で描画するため、コピー対象に含まれず
+ * （要件「コピーに行番号を含めない」）、折返し継続行には番号が出ない。
+ */
+.source-view .src-line {
+  display: block;
+  position: relative;
+  padding-left: 3.6em;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.source-view .src-line::before {
+  content: counter(srcline);
+  counter-increment: srcline;
+  position: absolute;
+  left: 0;
+  width: 2.8em;
+  text-align: right;
+  color: var(--fg-muted);
+  opacity: 0.7;
+  /* 行番号はコピー・選択対象から除外する（CSS 二重防御）。 */
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.hidden {
+  display: none;
+}
+
+/* ---- ステータスバー（FR-07） ----
+   左にファイルパス、右に統計。パスは伸縮して余白を埋め、長い場合は省略する。 */
+.statusbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 4px 14px;
+  background: var(--bg-elev);
+  border-top: 1px solid var(--border);
+  color: var(--fg-muted);
+  font-size: 12px;
+}
+
+/* ファイルパス: 余白を埋めつつ、長パスは末尾を省略（全体は title で開示）。 */
+.statusbar-path {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 統計グループ: 右側に固定幅で並べる。 */
+.statusbar-stats {
+  display: inline-flex;
+  align-items: center;
+  gap: 20px;
+  flex: none;
+}
+
+.statusbar-item {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.statusbar-label {
+  opacity: 0.8;
+}
+
+.statusbar-value {
+  color: var(--fg);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 縮退通知（NFR-01）: 差分強調を省略した旨を非モーダルで一時表示 */
+.statusbar-notice {
+  margin-left: auto;
+  padding-left: 12px;
+  color: var(--brand);
+}
+
+/* ---- ドラッグ&ドロップ歓迎表示（FR-09） ---- */
+.scroll.is-drop-target {
+  outline: 2px dashed var(--brand);
+  outline-offset: -8px;
+  background: color-mix(in srgb, var(--brand) 6%, var(--bg));
+}
+
+/* ---- 本文幅切替ボタンのラベル（FR-12） ---- */
+.btn .width-label {
+  font-variant-numeric: tabular-nums;
+  min-width: 2.4em;
+  text-align: left;
+}
+
+/* ---- 文字サイズ（ズーム）切替ボタンのラベル ---- */
+.btn .zoom-label {
+  font-variant-numeric: tabular-nums;
+  min-width: 3em;
+  text-align: left;
+}
+
+/* ---- Markdown 本文（GitHub 風 + 日本語可読性） ---- */
+.markdown-body {
+  max-width: var(--content-max-width, 860px);
+  margin: 0 auto;
+  /* 基準サイズ×ズーム倍率。子要素は em 相対のため一括で拡縮される。 */
+  font-size: calc(var(--content-font-size, 16px) * var(--content-zoom, 1));
+  line-height: 1.75;
+  word-wrap: break-word;
+}
+
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3 {
+  line-height: 1.3;
+  margin: 1.4em 0 0.6em;
+}
+
+.markdown-body h1 {
+  font-size: 1.8em;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0.3em;
+}
+
+.markdown-body h2 {
+  font-size: 1.4em;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0.2em;
+}
+
+.markdown-body code {
+  font-family: var(--font-mono);
+  background: var(--code-bg);
+  padding: 0.15em 0.4em;
+  border-radius: 4px;
+  font-size: 0.9em;
+}
+
+.markdown-body pre {
+  background: var(--code-bg);
+  padding: 14px 16px;
+  border-radius: var(--radius);
+  overflow: auto;
+}
+
+.markdown-body pre code {
+  background: transparent;
+  padding: 0;
+}
+
+/* ---- コードハイライト（highlight.js）トークン配色 ----
+ * 色は CSS 変数（--hl-*）で与え、明暗テーマへ追従させる。
+ * 既定の地色は本文色（--fg）を継承する。
+ */
+.markdown-body .hljs-comment,
+.markdown-body .hljs-quote {
+  color: var(--hl-comment);
+  font-style: italic;
+}
+
+.markdown-body .hljs-keyword,
+.markdown-body .hljs-selector-tag,
+.markdown-body .hljs-literal,
+.markdown-body .hljs-section {
+  color: var(--hl-keyword);
+}
+
+.markdown-body .hljs-string,
+.markdown-body .hljs-meta .hljs-string,
+.markdown-body .hljs-regexp,
+.markdown-body .hljs-link {
+  color: var(--hl-string);
+}
+
+.markdown-body .hljs-number,
+.markdown-body .hljs-bullet {
+  color: var(--hl-number);
+}
+
+/* 関数・メソッド名（呼び出し/定義）。 */
+.markdown-body .hljs-title.function_,
+.markdown-body .hljs-function .hljs-title {
+  color: var(--hl-function);
+}
+
+.markdown-body .hljs-title,
+.markdown-body .hljs-name {
+  color: var(--hl-title);
+}
+
+/* 型・クラス名。 */
+.markdown-body .hljs-type,
+.markdown-body .hljs-class .hljs-title,
+.markdown-body .hljs-title.class_ {
+  color: var(--hl-type);
+}
+
+/* 組み込み・シンボル。 */
+.markdown-body .hljs-built_in,
+.markdown-body .hljs-symbol {
+  color: var(--hl-built_in);
+}
+
+/* 属性・プロパティ・セレクタ。 */
+.markdown-body .hljs-attr,
+.markdown-body .hljs-attribute,
+.markdown-body .hljs-property,
+.markdown-body .hljs-selector-attr,
+.markdown-body .hljs-selector-class,
+.markdown-body .hljs-selector-id {
+  color: var(--hl-attr);
+}
+
+/* 変数・仮引数。 */
+.markdown-body .hljs-variable,
+.markdown-body .hljs-template-variable,
+.markdown-body .hljs-params {
+  color: var(--hl-variable);
+}
+
+/* 演算子・区切り。 */
+.markdown-body .hljs-operator,
+.markdown-body .hljs-punctuation {
+  color: var(--hl-operator);
+}
+
+.markdown-body .hljs-meta {
+  color: var(--hl-meta);
+}
+
+.markdown-body .hljs-tag {
+  color: var(--hl-tag);
+}
+
+.markdown-body .hljs-emphasis {
+  font-style: italic;
+}
+
+.markdown-body .hljs-strong {
+  font-weight: 600;
+}
+
+.markdown-body .hljs-addition {
+  color: var(--diff-add-fg);
+  background: var(--diff-add-bg);
+}
+
+.markdown-body .hljs-deletion {
+  color: var(--diff-del-fg);
+  background: var(--diff-del-bg);
+}
+
+.markdown-body blockquote {
+  margin: 1em 0;
+  padding: 0.2em 1em;
+  color: var(--fg-muted);
+  border-left: 4px solid var(--quote-bar);
+}
+
+.markdown-body table {
+  border-collapse: collapse;
+  margin: 1em 0;
+}
+
+.markdown-body th,
+.markdown-body td {
+  border: 1px solid var(--border);
+  padding: 6px 12px;
+}
+
+.markdown-body th {
+  background: var(--code-bg);
+}
+
+.markdown-body hr {
+  border: 0;
+  border-top: 1px solid var(--border);
+  margin: 1.6em 0;
+}
+
+.markdown-body a {
+  color: var(--accent);
+}
+
+/* ---- インライン差分（FR-03）: 本文中に span を重ねる ---- */
+.diff-added {
+  background: var(--diff-add-bg);
+  color: var(--diff-add-fg);
+  border-radius: 3px;
+}
+
+.diff-removed {
+  background: var(--diff-del-bg);
+  color: var(--diff-del-fg);
+  text-decoration: line-through;
+  border-radius: 3px;
+}
+
+/* テーブルのセル単位差分（FR-11）: 削除行は幻の行として赤系で挿入する */
+.markdown-body tr.diff-removed-row td {
+  background: var(--diff-del-bg);
+  color: var(--diff-del-fg);
+  text-decoration: line-through;
+}
+
+/* ---- 印刷 / PDF（FR-05）----
+ * @page マージンボックスを1つでも定義すると、ブラウザ既定のヘッダー/フッター
+ * （日付・タイトル・URL・ページ番号）は抑制される（Chromium 131+ / WebView2）。
+ * ヘッダー中央のファイル名（content）は main.ts が動的注入し、ここでは体裁と
+ * フッター右のページ番号のみを静的に定義する。
+ */
+@page {
+  margin: 16mm 14mm;
+
+  @top-center {
+    content: "";
+    font-size: 9pt;
+    color: #555;
+  }
+
+  @bottom-right {
+    content: counter(page) " / " counter(pages);
+    font-size: 9pt;
+    color: #555;
+  }
+}
+
+@media print {
+  .toolbar,
+  .tabbar,
+  .statusbar {
+    display: none !important;
+  }
+
+  body {
+    background: #fff;
+    color: #000;
+  }
+
+  .scroll {
+    overflow: visible;
+    padding: 0;
+  }
+
+  /* 印刷は常に等倍（画面ズームを持ち込まない）。 */
+  .markdown-body,
+  .source-view {
+    --content-zoom: 1;
+    max-width: none;
+  }
+
+  .markdown-body pre,
+  .markdown-body table {
+    break-inside: avoid;
+  }
+}

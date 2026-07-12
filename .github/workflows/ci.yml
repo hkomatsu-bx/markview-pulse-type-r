@@ -1,0 +1,132 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# 同一ブランチ/PR で新しい push があれば実行中の古いジョブを打ち切る（無駄なコストを避ける）。
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+# 最小権限。成果物アップロードは actions 権限で足りるため contents は read のみ。
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: "22"
+
+jobs:
+  # フロントエンド（TS）の静的検査と単体テスト。Tauri 非依存のため安価な ubuntu で実行。
+  frontend:
+    name: Frontend (lint / typecheck / test)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint (ESLint)
+        run: npm run lint
+
+      - name: Format check (Prettier)
+        run: npm run format:check
+
+      - name: Type-check + build (tsc && vite build)
+        run: npm run build
+
+      - name: Type-check E2E specs
+        run: npm run typecheck:e2e
+
+      - name: Unit tests + coverage (80% gate on src/core)
+        run: npm run coverage
+
+  # Rust バックエンドの検査。Windows 専用ターゲットのため windows-latest で実行。
+  # generate_context! がコンパイル時に ../dist を要求するため、clippy/test の前に
+  # フロントをビルドして dist を用意する。
+  rust:
+    name: Rust (fmt / clippy / test)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # clippy/test のコンパイルに必要な frontendDist（../dist）を生成する。
+      - name: Build frontend (create dist for generate_context!)
+        run: npm run build
+
+      # rust-toolchain.toml でチャンネル(1.97.0)と components(rustfmt, clippy)を固定済み。
+      # rustup がファイルを読んで該当ツールチェーンを導入する。
+      - name: Install pinned Rust toolchain
+        run: rustup show
+        working-directory: src-tauri
+
+      - name: Cache cargo build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Format check (rustfmt)
+        run: cargo fmt --all --check
+        working-directory: src-tauri
+
+      - name: Lint (clippy, warnings as errors)
+        run: cargo clippy --all-targets --all-features -- -D warnings
+        working-directory: src-tauri
+
+      - name: Unit tests
+        run: cargo test
+        working-directory: src-tauri
+
+  # リリース版の実行ファイル（exe）を生成し artifact として保存する。
+  # 検査が通ってからのみ走らせる（needs）。bundle.active=false のため
+  # 成果物は単体 exe（MSI/NSIS インストーラは生成されない）。
+  build:
+    name: Build release exe (tauri build)
+    needs: [frontend, rust]
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install pinned Rust toolchain
+        run: rustup show
+        working-directory: src-tauri
+
+      - name: Cache cargo build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      # tauri build が beforeBuildCommand(npm run build) を実行してから
+      # cargo build --release を行う。
+      - name: Build (npm run tauri build)
+        run: npm run tauri build
+
+      - name: Upload release exe
+        uses: actions/upload-artifact@v4
+        with:
+          name: mviewr-exe
+          path: src-tauri/target/release/mviewr.exe
+          if-no-files-found: error

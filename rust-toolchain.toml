@@ -1,0 +1,11 @@
+# ツールチェーンを固定して再現性を担保する。
+#
+# 依存の実効 MSRV は notify-types 2.1.0（notify 8 系が引き込む）が要求する
+# rustc 1.85 が下限。ピン留めが無いと 1.85 未満の環境で
+# "package notify-types v2.1.0 requires rustc 1.85 or newer" によりビルドが
+# 失敗し、また環境差でビルド成果物（配布 exe）の再現性が失われる。
+# 検証済みの安定版に固定する（Cargo.toml の rust-version=1.85 が下限の宣言、
+# 本ファイルが実ビルド版の固定）。
+[toolchain]
+channel = "1.97.0"
+components = ["rustfmt", "clippy"]
