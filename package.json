@@ -55,5 +55,8 @@
   },
   "overrides": {
     "serialize-javascript": "^7.0.7"
+  },
+  "engines": {
+    "node": "^20.0.0 || ^22.0.0 || >=24.0.0"
   }
 }
