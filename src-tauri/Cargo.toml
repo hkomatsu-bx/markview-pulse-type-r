@@ -5,10 +5,11 @@ name = "mviewr"
 version = "1.0.0"
 description = "Markview Pulse Type R - Windows 向け Markdown プレビューア"
 authors = ["Markview Pulse Type R contributors"]
-edition = "2021"
+edition = "2024"
 license = "MIT"
-# 実効 MSRV の下限。notify 8 系が引き込む notify-types 2.1.0 が rustc 1.85 を
-# 要求するため、それ未満ではビルド不可。実ビルド版は rust-toolchain.toml で固定。
+# 実効 MSRV の下限。edition 2024 が rustc 1.85 を要求し、notify 8 系が引き込む
+# notify-types 2.1.0 も同じく 1.85 を要求するため、それ未満ではビルド不可。
+# 実ビルド版は rust-toolchain.toml で固定。
 rust-version = "1.85"
 
 [lib]
