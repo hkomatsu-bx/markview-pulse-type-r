@@ -263,7 +263,7 @@ describe("fileClient onFileDrop", () => {
     expect(handler).toHaveBeenNthCalledWith(2, { kind: "over", paths: [] });
   });
 
-  it("maps any other type to a leave event", async () => {
+  it("maps leave to a leave event", async () => {
     const ref = captureDrop();
     const handler = vi.fn();
 
