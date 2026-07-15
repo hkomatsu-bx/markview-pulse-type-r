@@ -75,4 +75,48 @@ describe("tabStore", () => {
     state = setTabViewMode(state, "1", "preview");
     expect(getActiveTab(state)?.viewMode).toBe("preview");
   });
+
+  it("getActiveTab returns null when no tab matches the active id", () => {
+    const state = openTab(createTabState(), makeTab("1", "/a.md"));
+    const orphaned = { tabs: state.tabs, activeTabId: "missing" };
+    expect(getActiveTab(orphaned)).toBeNull();
+  });
+
+  it("closeTab leaves the state unchanged for an unknown id", () => {
+    const state = openTab(createTabState(), makeTab("1", "/a.md"));
+    expect(closeTab(state, "missing")).toBe(state);
+  });
+
+  it("closeTab keeps the active tab when a non-active tab is closed", () => {
+    let state = openTab(createTabState(), makeTab("1", "/a.md"));
+    state = openTab(state, makeTab("2", "/b.md"));
+    state = setActiveTab(state, "1");
+    state = closeTab(state, "2");
+    expect(state.tabs).toHaveLength(1);
+    expect(state.activeTabId).toBe("1");
+  });
+
+  it("setActiveTab leaves the state unchanged for an unknown id", () => {
+    const state = openTab(createTabState(), makeTab("1", "/a.md"));
+    expect(setActiveTab(state, "missing")).toBe(state);
+  });
+
+  it("updateTabSource only touches the matching tab", () => {
+    let state = openTab(createTabState(), makeTab("1", "/a.md", "a1"));
+    state = openTab(state, makeTab("2", "/b.md", "b1"));
+    state = updateTabSource(state, "2", "b2");
+    const [first, second] = state.tabs;
+    expect(first?.source).toBe("a1");
+    expect(second?.source).toBe("b2");
+    expect(second?.previousSource).toBe("b1");
+  });
+
+  it("setTabViewMode only touches the matching tab", () => {
+    let state = openTab(createTabState(), makeTab("1", "/a.md"));
+    state = openTab(state, makeTab("2", "/b.md"));
+    state = setTabViewMode(state, "2", "source");
+    const [first, second] = state.tabs;
+    expect(first?.viewMode).toBe("preview");
+    expect(second?.viewMode).toBe("source");
+  });
 });

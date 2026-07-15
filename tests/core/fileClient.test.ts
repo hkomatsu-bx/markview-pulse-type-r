@@ -5,6 +5,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const invokeMock = vi.fn();
 const listenMock = vi.fn();
 const openPathMock = vi.fn();
+const onDragDropEventMock = vi.fn();
 
 vi.mock("@tauri-apps/api/core", () => ({
   invoke: (...args: unknown[]) => invokeMock(...args),
@@ -14,6 +15,11 @@ vi.mock("@tauri-apps/api/event", () => ({
 }));
 vi.mock("@tauri-apps/plugin-opener", () => ({
   openPath: (...args: unknown[]) => openPathMock(...args),
+}));
+vi.mock("@tauri-apps/api/webview", () => ({
+  getCurrentWebview: () => ({
+    onDragDropEvent: (...args: unknown[]) => onDragDropEventMock(...args),
+  }),
 }));
 
 import {
@@ -26,6 +32,7 @@ import {
   onFileChanged,
   onWatchError,
   onOpenFiles,
+  onFileDrop,
 } from "../../src/core/fs/fileClient";
 
 describe("fileClient IPC wrappers", () => {
@@ -158,5 +165,111 @@ describe("fileClient event subscriptions", () => {
       expect.any(Function),
     );
     expect(handler).toHaveBeenCalledWith({ tabId: "tab-1", message: "boom" });
+  });
+
+  it("onFileChanged ignores an invalid payload (Zod boundary)", async () => {
+    let captured: (event: { payload: unknown }) => void = () => {};
+    listenMock.mockImplementation((_name: string, cb: typeof captured) => {
+      captured = cb;
+      return Promise.resolve(() => {});
+    });
+    const handler = vi.fn();
+
+    await onFileChanged(handler);
+    captured({ payload: { tabId: 123 } });
+
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  it("onWatchError ignores an invalid payload (Zod boundary)", async () => {
+    let captured: (event: { payload: unknown }) => void = () => {};
+    listenMock.mockImplementation((_name: string, cb: typeof captured) => {
+      captured = cb;
+      return Promise.resolve(() => {});
+    });
+    const handler = vi.fn();
+
+    await onWatchError(handler);
+    captured({ payload: { message: null } });
+
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  it("onOpenFiles ignores an invalid payload (Zod boundary)", async () => {
+    let captured: (event: { payload: unknown }) => void = () => {};
+    listenMock.mockImplementation((_name: string, cb: typeof captured) => {
+      captured = cb;
+      return Promise.resolve(() => {});
+    });
+    const handler = vi.fn();
+
+    await onOpenFiles(handler);
+    captured({ payload: [1, 2, 3] });
+
+    expect(handler).not.toHaveBeenCalled();
+  });
+});
+
+describe("fileClient onFileDrop", () => {
+  beforeEach(() => {
+    onDragDropEventMock.mockReset();
+  });
+
+  function captureDrop(): { fire: (payload: unknown) => void } {
+    const ref: { fire: (payload: unknown) => void } = { fire: () => {} };
+    onDragDropEventMock.mockImplementation(
+      (cb: (event: { payload: unknown }) => void) => {
+        ref.fire = (payload: unknown) => {
+          cb({ payload });
+        };
+        return Promise.resolve(() => {});
+      },
+    );
+    return ref;
+  }
+
+  it("forwards validated paths on a drop event", async () => {
+    const ref = captureDrop();
+    const handler = vi.fn();
+
+    await onFileDrop(handler);
+    ref.fire({ type: "drop", paths: ["a.md", "b.md"] });
+
+    expect(handler).toHaveBeenCalledWith({
+      kind: "drop",
+      paths: ["a.md", "b.md"],
+    });
+  });
+
+  it("falls back to empty paths when a drop payload fails validation", async () => {
+    const ref = captureDrop();
+    const handler = vi.fn();
+
+    await onFileDrop(handler);
+    ref.fire({ type: "drop", paths: [1, 2] });
+
+    expect(handler).toHaveBeenCalledWith({ kind: "drop", paths: [] });
+  });
+
+  it("maps enter and over to empty-path events", async () => {
+    const ref = captureDrop();
+    const handler = vi.fn();
+
+    await onFileDrop(handler);
+    ref.fire({ type: "enter", paths: ["ignored"] });
+    ref.fire({ type: "over" });
+
+    expect(handler).toHaveBeenNthCalledWith(1, { kind: "enter", paths: [] });
+    expect(handler).toHaveBeenNthCalledWith(2, { kind: "over", paths: [] });
+  });
+
+  it("maps any other type to a leave event", async () => {
+    const ref = captureDrop();
+    const handler = vi.fn();
+
+    await onFileDrop(handler);
+    ref.fire({ type: "leave" });
+
+    expect(handler).toHaveBeenCalledWith({ kind: "leave", paths: [] });
   });
 });
