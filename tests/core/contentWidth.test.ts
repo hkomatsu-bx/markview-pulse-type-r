@@ -27,6 +27,10 @@ describe("cycleContentWidth（FR-12）", () => {
   it("既定は normal", () => {
     expect(DEFAULT_CONTENT_WIDTH).toBe("normal");
   });
+
+  it("未知値は先頭（narrow）へ寄せる", () => {
+    expect(cycleContentWidth("bogus" as ContentWidth)).toBe("narrow");
+  });
 });
 
 describe("contentWidthToCss（FR-12）", () => {
