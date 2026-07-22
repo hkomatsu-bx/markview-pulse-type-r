@@ -64,6 +64,7 @@ import {
 import { filterMarkdownPaths } from "./core/fs/dropPaths";
 import { renderTabBar } from "./ui/tabBar";
 import { renderPreview } from "./ui/preview";
+import { renderMermaid } from "./ui/mermaidRenderer";
 import { renderStatusBar, setStatusNotice } from "./ui/statusBar";
 import {
   initToolbar,
@@ -167,6 +168,12 @@ function bootstrap(): void {
   // テーマ制御。起動後に生成し、メニューの切替で setMode する（非永続）。
   let themeController: ThemeController | null = null;
 
+  // mermaid 描画の世代管理。render() のたびに増やし、遅延 import 完了後の
+  // 反映が最新世代かを判定して古い描画を破棄する。
+  let renderSeq = 0;
+  // 直近の描画に mermaid 図が含まれていたか。テーマ切替時の再描画要否の判定に使う。
+  let previewHasMermaid = false;
+
   /** 本文最大幅をプレビューとツールバーラベルへ反映する。 */
   function applyContentWidth(): void {
     previewEl.style.setProperty(
@@ -197,6 +204,8 @@ function bootstrap(): void {
 
   /** 現在の状態を UI 全体へ反映する。 */
   function render(): void {
+    // 世代を進める。これ以前に開始した mermaid の遅延描画は破棄対象になる。
+    const seq = ++renderSeq;
     renderTabBar(tabbarEl, state, {
       onSelect,
       onClose: (id) => void onClose(id),
@@ -208,6 +217,7 @@ function bootstrap(): void {
       // 空状態ではアプリ名へ戻す（印刷ヘッダーは onPrint で抑止されるため未設定で可）。
       document.title = APP_TITLE;
       previewEl.replaceChildren();
+      previewHasMermaid = false;
       previewEl.classList.add("hidden");
       emptyStateEl.classList.remove("hidden");
       renderStatusBar(statusbarEl, null, null);
@@ -231,6 +241,18 @@ function bootstrap(): void {
       enabled: active.viewMode === "preview",
     });
     const result = renderPreview(previewEl, active, diffHighlight);
+    // mermaid 図があれば遅延ロードして描画する（無ければ mermaid を import しない）。
+    // renderPreview 直後の同期時点で判定する（この時点では未処理の pre.mermaid が残る）。
+    previewHasMermaid =
+      active.viewMode === "preview" &&
+      previewEl.querySelector("pre.mermaid") !== null;
+    if (previewHasMermaid) {
+      void renderMermaid(
+        previewEl,
+        () => seq === renderSeq,
+        (error) => void reportError("mermaid 図の描画に失敗しました", error),
+      );
+    }
     renderStatusBar(
       statusbarEl,
       computeDocumentStats(active.source),
@@ -552,6 +574,19 @@ function bootstrap(): void {
     },
     { passive: false },
   );
+
+  // data-theme の変更（メニュー手動切替・OS 追従の両方）で mermaid 図の配色を追従させる。
+  // mermaid の色は生成時に SVG へ焼き込まれ CSS 変数では追従しないため、再描画が要る。
+  // mermaid 在時のみ再描画し、非 mermaid 文書のスクロール位置は維持する（回帰防止）。
+  const themeObserver = new MutationObserver(() => {
+    if (previewHasMermaid) {
+      render();
+    }
+  });
+  themeObserver.observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ["data-theme"],
+  });
 
   // イベント購読と初期描画。失敗は通知して握りつぶさない。
   void (async () => {

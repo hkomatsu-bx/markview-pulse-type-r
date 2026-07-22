@@ -84,6 +84,23 @@ function createMarkdownRenderer(): MarkdownIt {
 
 const renderer = createMarkdownRenderer();
 
+// mermaid フェンス（```mermaid）は図として描画するため、コードハイライトせず
+// <pre class="mermaid"> を出力する。ソースはエスケープして DOMPurify を通し、
+// mermaid はエスケープ復元後の textContent から原文を読む（ui/mermaidRenderer が描画）。
+// それ以外の言語は既定の fence（highlightCode 経由）へ委譲する。
+type FenceRule = NonNullable<MarkdownIt["renderer"]["rules"]["fence"]>;
+const defaultFence: FenceRule =
+  renderer.renderer.rules.fence ??
+  ((tokens, idx, options, _env, self) =>
+    self.renderToken(tokens, idx, options));
+renderer.renderer.rules.fence = (tokens, idx, options, env, self) => {
+  const token = tokens[idx];
+  if (token?.info.trim().split(/\s+/u)[0] === "mermaid") {
+    return `<pre class="mermaid">${renderer.utils.escapeHtml(token.content)}</pre>`;
+  }
+  return defaultFence(tokens, idx, options, env, self);
+};
+
 /**
  * markdown-it の出力 HTML をサニタイズする。
  * DOMPurify の既定の安全プロファイルを用い、<script>・イベントハンドラ属性
