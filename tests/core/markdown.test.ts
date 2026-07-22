@@ -24,9 +24,33 @@ describe("renderMarkdown", () => {
     expect(html).toContain("<strong>注意</strong>");
   });
 
-  it("does not emit raw HTML (html:false, XSS guard)", () => {
+  it("removes script tags via sanitization (XSS guard)", () => {
     const html = renderMarkdown("<script>alert(1)</script>");
     expect(html).not.toContain("<script>");
+  });
+
+  it("renders safe raw HTML tags (html:true + DOMPurify)", () => {
+    const html = renderMarkdown("<div><sub>x</sub> <kbd>Ctrl</kbd></div>");
+    expect(html).toContain("<div>");
+    expect(html).toContain("<sub>x</sub>");
+    expect(html).toContain("<kbd>Ctrl</kbd>");
+  });
+
+  it("strips event-handler attributes from raw HTML (XSS guard)", () => {
+    const html = renderMarkdown('<img src="x" onerror="alert(1)">');
+    expect(html).not.toContain("onerror");
+  });
+
+  it("strips javascript: URIs from links (XSS guard)", () => {
+    const html = renderMarkdown('<a href="javascript:alert(1)">click</a>');
+    expect(html).not.toContain("javascript:");
+  });
+
+  it("strips target from links so they open in the same context (tabnabbing guard)", () => {
+    const html = renderMarkdown(
+      '<a href="https://example.com" target="_blank">x</a>',
+    );
+    expect(html).not.toContain("target");
   });
 
   it("highlights fenced code blocks for a registered language", () => {
