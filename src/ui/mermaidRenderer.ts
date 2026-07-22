@@ -6,6 +6,7 @@
 // テーマは data-theme に追従。競合対策として世代チェック（isCurrent）で古い描画を破棄する。
 
 import type { MermaidConfig } from "mermaid";
+import { REMOVED_CLASS, REMOVED_ROW_CLASS } from "../core/diff/diffDom";
 
 // ダーク用のノード配色。mermaid 既定の dark テーマはノード地色が濃いグレーで
 // アプリ背景（--bg: #202020）に埋もれるため、ライトのラベンダーに呼応する
@@ -24,8 +25,11 @@ const DARK_THEME_VARIABLES: Readonly<Record<string, string | boolean>> = {
   tertiaryColor: "#262633",
 };
 
-/** data-theme に応じた mermaid 設定を返す。ダークはノード配色も上書きする。 */
-function buildMermaidConfig(): MermaidConfig {
+/**
+ * data-theme に応じた mermaid 設定を返す。ダークはノード配色も上書きする。
+ * securityLevel は未信頼の図ソースを扱う前提で常に "strict" 固定（緩めない）。
+ */
+export function buildMermaidConfig(): MermaidConfig {
   const base: MermaidConfig = {
     startOnLoad: false,
     securityLevel: "strict",
@@ -53,6 +57,24 @@ export async function renderMermaid(
   );
   if (nodes.length === 0) {
     return;
+  }
+
+  // 差分強調 ON では mermaid ブロック内が差分 span に分割され、削除語（diff-removed）の
+  // ファントムも混じるため、mermaid が innerHTML から壊れたソースを読む。複製から削除語を
+  // 除いた textContent が現在の原文なので、描画前にそれで置き換え、原文だけを渡す。
+  for (const node of nodes) {
+    if (
+      node.querySelector(`.${REMOVED_CLASS}, .${REMOVED_ROW_CLASS}`) === null
+    ) {
+      continue; // 削除語が無ければ現在の textContent がそのまま原文。
+    }
+    const clone = node.cloneNode(true) as HTMLElement;
+    for (const removed of clone.querySelectorAll(
+      `.${REMOVED_CLASS}, .${REMOVED_ROW_CLASS}`,
+    )) {
+      removed.remove();
+    }
+    node.textContent = clone.textContent;
   }
 
   try {

@@ -23,8 +23,10 @@ import {
 } from "./diffCost";
 
 const ADDED_CLASS = "diff-added";
-const REMOVED_CLASS = "diff-removed";
-const REMOVED_ROW_CLASS = "diff-removed-row";
+// 削除語（旧テキストのファントム）を表す span/行のクラス。ui 側が差分 DOM から
+// 現在の原文を再構成する際に除外するため公開する（例: ui/mermaidRenderer）。
+export const REMOVED_CLASS = "diff-removed";
+export const REMOVED_ROW_CLASS = "diff-removed-row";
 
 /** span.diff-added / diff-removed を生成する。 */
 function makeSpan(

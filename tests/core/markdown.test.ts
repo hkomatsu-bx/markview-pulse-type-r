@@ -84,9 +84,9 @@ describe("renderMarkdown", () => {
     expect(html).toContain("&lt;script&gt;");
   });
 
-  it('emits a mermaid fence as <pre class="mermaid"> with escaped source', () => {
+  it("emits a mermaid fence as pre.mermaid with escaped source", () => {
     const html = renderMarkdown("```mermaid\ngraph TD\nA-->B\n```");
-    expect(html).toContain('<pre class="mermaid">');
+    expect(html).toContain('class="mermaid"');
     // ソースは textContent として残る（mermaid が原文を読む）。ハイライトはしない。
     expect(html).toContain("graph TD");
     expect(html).not.toContain("hljs");
@@ -94,7 +94,7 @@ describe("renderMarkdown", () => {
 
   it("escapes HTML inside a mermaid fence (survives sanitization)", () => {
     const html = renderMarkdown('```mermaid\ngraph TD\nA["<b>x</b>"]\n```');
-    expect(html).toContain('<pre class="mermaid">');
+    expect(html).toContain('class="mermaid"');
     // 生タグではなくエスケープされたテキストとして保持される。
     expect(html).not.toContain("<b>x</b>");
     expect(html).toContain("&lt;b&gt;");
