@@ -689,6 +689,22 @@ body {
   padding: 0;
 }
 
+/* ---- mermaid 図 ----
+ * コードブロックの体裁（地色・枠・パディング）を打ち消し、図を中央寄せする。
+ * 描画完了後は <pre class="mermaid"> の中身が SVG に置換される。 */
+.markdown-body pre.mermaid {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  margin: 1em 0;
+  text-align: center;
+}
+
+.markdown-body pre.mermaid svg {
+  max-width: 100%;
+  height: auto;
+}
+
 /* ---- コードハイライト（highlight.js）トークン配色 ----
  * 色は CSS 変数（--hl-*）で与え、明暗テーマへ追従させる。
  * 既定の地色は本文色（--fg）を継承する。
