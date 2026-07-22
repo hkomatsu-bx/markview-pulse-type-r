@@ -15,6 +15,7 @@
 
 import MarkdownIt from "markdown-it";
 import DOMPurify from "dompurify";
+import { extractFrontMatter, renderFrontMatterTable } from "./frontMatter";
 import hljs from "highlight.js/lib/core";
 import javascript from "highlight.js/lib/languages/javascript";
 import typescript from "highlight.js/lib/languages/typescript";
@@ -96,5 +97,8 @@ function sanitizeHtml(html: string): string {
 
 /** Markdown ソースを安全な HTML 文字列へ描画する。 */
 export function renderMarkdown(source: string): string {
-  return sanitizeHtml(renderer.render(source));
+  // 冒頭の YAML フロントマターを GitHub 風テーブルとして本文先頭に前置する。
+  const { data, body } = extractFrontMatter(source);
+  const fmHtml = renderFrontMatterTable(data);
+  return sanitizeHtml(fmHtml + renderer.render(body));
 }

@@ -813,6 +813,22 @@ body {
   background: var(--code-bg);
 }
 
+/* ---- フロントマター（YAML）テーブル ----
+ * 本文先頭のメタデータを GitHub 風に表示する。key 列は th のため --code-bg 背景を
+ * 継承し、左寄せ・控えめな色で強調する。枠色・地色はトークンで明暗両テーマに追従。 */
+.markdown-body table.front-matter {
+  margin-top: 0;
+  margin-bottom: 1.5em;
+  font-size: 0.95em;
+}
+
+.markdown-body table.front-matter th {
+  text-align: left;
+  white-space: nowrap;
+  color: var(--fg-muted);
+  font-weight: 600;
+}
+
 .markdown-body hr {
   border: 0;
   border-top: 1px solid var(--border);

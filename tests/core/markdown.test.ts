@@ -60,6 +60,22 @@ describe("renderMarkdown", () => {
     expect(html).toContain("hljs-keyword");
   });
 
+  it("renders leading YAML front matter as a table before the body", () => {
+    const html = renderMarkdown("---\ntitle: Hello\n---\n# 本文");
+    expect(html).toContain('<table class="front-matter">');
+    expect(html).toContain("<th>title</th>");
+    // 本文もフロントマターの後に描画される。
+    expect(html).toContain("<h1>本文</h1>");
+    // FM テーブルが本文見出しより前に置かれる。
+    expect(html.indexOf("front-matter")).toBeLessThan(html.indexOf("<h1>"));
+  });
+
+  it("leaves documents without front matter unchanged", () => {
+    const html = renderMarkdown("# 見出しのみ");
+    expect(html).not.toContain("front-matter");
+    expect(html).toContain("<h1>見出しのみ</h1>");
+  });
+
   it("escapes code in an unregistered language fence (no raw HTML)", () => {
     const html = renderMarkdown(
       "```unknownlang\n<script>alert(1)</script>\n```",
