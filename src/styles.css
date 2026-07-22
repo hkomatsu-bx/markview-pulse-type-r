@@ -25,15 +25,17 @@
   --content-zoom: 1;
 }
 
-/* ライト（既定 + 明示 light） */
+/* ライト（既定 + 明示 light）
+ * GitHub 風の面階層: 本文キャンバス（--bg）を白、UI クローム（--bg-elev）と
+ * コード（--code-bg）を淡グレーにし、本文とコード/クロームの明度差を確保する。 */
 :root,
 :root[data-theme="light"] {
-  --bg: #f3f3f3;
-  --bg-elev: #ffffff;
+  --bg: #ffffff;
+  --bg-elev: #f6f8fa;
   --fg: #1b1b1b;
   --fg-muted: #5c5c5c;
   --border: #e0e0e0;
-  --code-bg: #f5f5f5;
+  --code-bg: #f6f8fa;
   --quote-bar: #c8c8c8;
   --diff-add-bg: #e6f4ea;
   --diff-add-fg: #137333;
@@ -677,6 +679,8 @@ body {
   background: var(--code-bg);
   padding: 14px 16px;
   border-radius: var(--radius);
+  /* 白い本文キャンバス上でコードブロックの境界を明確化する（両テーマ共通）。 */
+  border: 1px solid var(--border);
   overflow: auto;
 }
 
@@ -807,6 +811,22 @@ body {
 
 .markdown-body th {
   background: var(--code-bg);
+}
+
+/* ---- フロントマター（YAML）テーブル ----
+ * 本文先頭のメタデータを GitHub 風に表示する。key 列は th のため --code-bg 背景を
+ * 継承し、左寄せ・控えめな色で強調する。枠色・地色はトークンで明暗両テーマに追従。 */
+.markdown-body table.front-matter {
+  margin-top: 0;
+  margin-bottom: 1.5em;
+  font-size: 0.95em;
+}
+
+.markdown-body table.front-matter th {
+  text-align: left;
+  white-space: nowrap;
+  color: var(--fg-muted);
+  font-weight: 600;
 }
 
 .markdown-body hr {

@@ -1,7 +1,11 @@
 // Markdown 描画。
 //
 // markdown-it を GFM 寄せで構成する。
-// html:false は生 HTML を無効化し XSS 面を閉じる（信頼できない .md を開く前提）。
+// html:true で生 HTML を許可し、GitHub と同じ「許可 → サニタイズ」モデルを再現する。
+// 信頼できない .md を開く前提は変わらないため、描画 HTML は必ず DOMPurify を通す。
+// renderMarkdown の出力は全描画経路（preview.ts / diffDom.ts）で innerHTML に注入されるため、
+// ここが XSS 防御の単一チョークポイントになる（呼び出し側は素通しでよい）。
+// CSP（script-src 'self'）との多層防御で担保する。
 // CJK 括弧隣接の `「**重要**」` は markdown-it の左右フランキング規則で
 // 正しく強調されるため、前処理は不要。
 //
@@ -10,6 +14,8 @@
 // トークン色は styles.css 側で CSS 変数により明暗テーマへ追従させる。
 
 import MarkdownIt from "markdown-it";
+import DOMPurify from "dompurify";
+import { extractFrontMatter, renderFrontMatterTable } from "./frontMatter";
 import hljs from "highlight.js/lib/core";
 import javascript from "highlight.js/lib/languages/javascript";
 import typescript from "highlight.js/lib/languages/typescript";
@@ -69,7 +75,7 @@ function highlightCode(code: string, lang: string): string {
 /** markdown-it インスタンスを生成する。設定を 1 か所に集約する。 */
 function createMarkdownRenderer(): MarkdownIt {
   return new MarkdownIt({
-    html: false,
+    html: true,
     linkify: true,
     breaks: false,
     highlight: highlightCode,
@@ -78,7 +84,21 @@ function createMarkdownRenderer(): MarkdownIt {
 
 const renderer = createMarkdownRenderer();
 
+/**
+ * markdown-it の出力 HTML をサニタイズする。
+ * DOMPurify の既定の安全プロファイルを用い、<script>・イベントハンドラ属性
+ * （onerror 等）・javascript: URI を除去する。class は既定で許可されるため
+ * highlight.js のトークン span は保持される。target 属性も既定で除去されるため、
+ * リンクは常に同一コンテキストで開き reverse tabnabbing は発生しない。
+ */
+function sanitizeHtml(html: string): string {
+  return DOMPurify.sanitize(html);
+}
+
 /** Markdown ソースを安全な HTML 文字列へ描画する。 */
 export function renderMarkdown(source: string): string {
-  return renderer.render(source);
+  // 冒頭の YAML フロントマターを GitHub 風テーブルとして本文先頭に前置する。
+  const { data, body } = extractFrontMatter(source);
+  const fmHtml = renderFrontMatterTable(data);
+  return sanitizeHtml(fmHtml + renderer.render(body));
 }
