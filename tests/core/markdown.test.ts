@@ -53,6 +53,17 @@ describe("renderMarkdown", () => {
     expect(html).not.toContain("target");
   });
 
+  it("strips <style> tags and style attributes (CSS-injection guard)", () => {
+    const html = renderMarkdown(
+      '<style>body{background:red}</style><div style="position:fixed;inset:0">x</div>',
+    );
+    // 全面オーバーレイや background-image ビーコンを可能にする CSS 注入を防ぐ。
+    expect(html).not.toContain("<style");
+    expect(html).not.toContain("style=");
+    // 安全な要素自体は残る。
+    expect(html).toContain("<div>x</div>");
+  });
+
   it("highlights fenced code blocks for a registered language", () => {
     const html = renderMarkdown("```js\nconst x = 1;\n```");
     expect(html).toContain('class="hljs');

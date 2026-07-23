@@ -146,4 +146,56 @@ describe("renderDiff — テーブルのセル単位差分（FR-11）", () => {
     expect(phantom?.textContent).toContain("a");
     expect(phantom?.getAttribute("aria-hidden")).toBe("true");
   });
+
+  it("pairs content tables by index regardless of front-matter table presence", () => {
+    // prev には本文表のみ、next には先頭にフロントマター表が加わるケース。
+    renderDiff(
+      container,
+      "<table><tbody><tr><td>name</td><td>30</td></tr></tbody></table>",
+      '<table class="front-matter"><tbody><tr><th>title</th><td>x</td></tr></tbody></table>' +
+        "<table><tbody><tr><td>name</td><td>31</td></tr></tbody></table>",
+    );
+
+    // FM 表を対応付けから除外するので、本文表(30→31)が正しくセル差分になる。
+    const contentTable = container.querySelector("table:not(.front-matter)");
+    expect(contentTable?.querySelector(".diff-added")?.textContent).toBe("31");
+    expect(contentTable?.querySelector(".diff-removed")?.textContent).toBe(
+      "30",
+    );
+  });
+});
+
+describe("renderDiff — mermaid ブロックは不可分（差分 span を注入しない）", () => {
+  let container: HTMLElement;
+
+  beforeEach(() => {
+    container = document.createElement("div");
+  });
+
+  it("leaves pre.mermaid free of diff spans on an insert-only change", () => {
+    // 行追加のみの差分。従来は diff-added span がブロック内に残り mermaid が壊れていた。
+    renderDiff(
+      container,
+      '<pre class="mermaid">graph TD\nA--&gt;B</pre>',
+      '<pre class="mermaid">graph TD\nA--&gt;B\nB--&gt;C</pre>',
+    );
+
+    const pre = container.querySelector("pre.mermaid");
+    expect(pre).not.toBeNull();
+    expect(pre?.querySelector(".diff-added, .diff-removed")).toBeNull();
+    // innerHTML から読む mermaid が原文をそのまま得られる。
+    expect(pre?.textContent).toBe("graph TD\nA-->B\nB-->C");
+  });
+
+  it("leaves pre.mermaid free of diff spans on a delete change", () => {
+    renderDiff(
+      container,
+      '<pre class="mermaid">graph TD\nA--&gt;B\nB--&gt;C</pre>',
+      '<pre class="mermaid">graph TD\nA--&gt;B</pre>',
+    );
+
+    const pre = container.querySelector("pre.mermaid");
+    expect(pre?.querySelector(".diff-added, .diff-removed")).toBeNull();
+    expect(pre?.textContent).toBe("graph TD\nA-->B");
+  });
 });

@@ -60,15 +60,10 @@ describe("renderMermaid", () => {
     expect(onError).not.toHaveBeenCalled();
   });
 
-  it("strips diff-removed phantoms so mermaid receives the current source", async () => {
+  it("initializes and runs mermaid on the current-generation nodes", async () => {
+    const mermaid = (await import("mermaid")).default;
     const container = document.createElement("div");
-    // 差分強調で「B」→「C」に変わった状態を模す。現在の原文は "graph TD\nA-->C"、
-    // 削除語 "B" は diff-removed span として混入している。
-    container.innerHTML =
-      '<pre class="mermaid">graph TD\nA--&gt;' +
-      '<span class="diff-removed">B</span>' +
-      '<span class="diff-added">C</span></pre>';
-    const node = container.querySelector<HTMLElement>("pre.mermaid");
+    container.innerHTML = '<pre class="mermaid">graph TD\nA-->B</pre>';
 
     await renderMermaid(
       container,
@@ -76,8 +71,8 @@ describe("renderMermaid", () => {
       () => undefined,
     );
 
-    // 削除語 B を除いた現在の原文が復元される（mermaid には原文だけが渡る）。
-    expect(node?.textContent).toBe("graph TD\nA-->C");
+    expect(mermaid.initialize).toHaveBeenCalled();
+    expect(mermaid.run).toHaveBeenCalled();
   });
 
   it("aborts without touching the DOM when the generation is stale", async () => {

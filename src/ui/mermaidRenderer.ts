@@ -6,7 +6,6 @@
 // テーマは data-theme に追従。競合対策として世代チェック（isCurrent）で古い描画を破棄する。
 
 import type { MermaidConfig } from "mermaid";
-import { REMOVED_CLASS, REMOVED_ROW_CLASS } from "../core/diff/diffDom";
 
 // ダーク用のノード配色。mermaid 既定の dark テーマはノード地色が濃いグレーで
 // アプリ背景（--bg: #202020）に埋もれるため、ライトのラベンダーに呼応する
@@ -40,14 +39,22 @@ export function buildMermaidConfig(): MermaidConfig {
   return { ...base, theme: "default" };
 }
 
+// mermaid 描画を直列化する。並行 run は mermaid のグローバル状態（Date.now() ベースの
+// id 生成・document 直下の一時要素）を共有し、衝突で相互に壊し得るため、前の描画の完了を
+// 待ってから走らせる。連鎖の各段は内部で catch するため、この Promise は reject しない。
+let renderChain: Promise<void> = Promise.resolve();
+
 /**
  * container 内の <pre class="mermaid"> を mermaid 図として描画する。
  * 対象が無ければ mermaid を import しない（起動時バンドルを肥大させないための遅延ロード）。
+ * 差分強調 ON でも diffDom が mermaid ブロックを不可分に扱う（span を注入しない）ため、
+ * ここでは原文の復元処理は不要。
  *
- * @param isCurrent 最新世代かを返す。非同期完了時に false なら DOM に触れず破棄する。
+ * @param isCurrent 最新世代かを返す。実行時に false なら DOM に触れず破棄する。
  * @param onError 描画失敗時のハンドラ（無音失敗禁止）。
+ * @returns この描画（直列化キュー上の当該段）の完了を表す Promise。
  */
-export async function renderMermaid(
+export function renderMermaid(
   container: HTMLElement,
   isCurrent: () => boolean,
   onError: (error: unknown) => void,
@@ -56,42 +63,31 @@ export async function renderMermaid(
     container.querySelectorAll<HTMLElement>("pre.mermaid"),
   );
   if (nodes.length === 0) {
-    return;
+    return Promise.resolve();
   }
 
-  // 差分強調 ON では mermaid ブロック内が差分 span に分割され、削除語（diff-removed）の
-  // ファントムも混じるため、mermaid が innerHTML から壊れたソースを読む。複製から削除語を
-  // 除いた textContent が現在の原文なので、描画前にそれで置き換え、原文だけを渡す。
-  for (const node of nodes) {
-    if (
-      node.querySelector(`.${REMOVED_CLASS}, .${REMOVED_ROW_CLASS}`) === null
-    ) {
-      continue; // 削除語が無ければ現在の textContent がそのまま原文。
-    }
-    const clone = node.cloneNode(true) as HTMLElement;
-    for (const removed of clone.querySelectorAll(
-      `.${REMOVED_CLASS}, .${REMOVED_ROW_CLASS}`,
-    )) {
-      removed.remove();
-    }
-    node.textContent = clone.textContent;
-  }
-
-  try {
-    const mermaid = (await import("mermaid")).default;
-    // 遅延 import の完了時に世代が変わっていれば、DOM に触れず破棄する。
+  renderChain = renderChain.then(async () => {
+    // 直列化待ちの間に新しい描画へ置き換わっていれば、この世代は破棄する。
     if (!isCurrent()) {
       return;
     }
-    // テーマ切替のたびに反映する必要があるため、run 前に毎回設定する。
-    mermaid.initialize(buildMermaidConfig());
-    // suppressErrors: 不正な図は mermaid が当該ノードへエラー図を描く（可視・無音失敗ではない）。
-    // 1 つの失敗が他の図を巻き込まないよう true にする。
-    await mermaid.run({ nodes, suppressErrors: true });
-  } catch (error) {
-    // import 失敗など致命的なエラーのみここへ到達する。最新世代のときだけ通知する。
-    if (isCurrent()) {
-      onError(error);
+    try {
+      const mermaid = (await import("mermaid")).default;
+      // 遅延 import の完了時に世代が変わっていれば、DOM に触れず破棄する。
+      if (!isCurrent()) {
+        return;
+      }
+      // テーマ切替のたびに反映する必要があるため、run 前に毎回設定する。
+      mermaid.initialize(buildMermaidConfig());
+      // suppressErrors: 不正な図は mermaid が当該ノードへエラー図を描く（可視・無音失敗ではない）。
+      // 1 つの失敗が他の図を巻き込まないよう true にする。
+      await mermaid.run({ nodes, suppressErrors: true });
+    } catch (error) {
+      // import 失敗など致命的なエラーのみここへ到達する。最新世代のときだけ通知する。
+      if (isCurrent()) {
+        onError(error);
+      }
     }
-  }
+  });
+  return renderChain;
 }
