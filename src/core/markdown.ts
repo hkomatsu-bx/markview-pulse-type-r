@@ -107,9 +107,16 @@ renderer.renderer.rules.fence = (tokens, idx, options, env, self) => {
  * （onerror 等）・javascript: URI を除去する。class は既定で許可されるため
  * highlight.js のトークン span は保持される。target 属性も既定で除去されるため、
  * リンクは常に同一コンテキストで開き reverse tabnabbing は発生しない。
+ * さらに <style> 要素と style 属性を禁止する（GitHub 同様）。既定では許可されるが、
+ * 未信頼の .md が全面オーバーレイ（UI 偽装）や background-image によるビーコンで
+ * アプリのクロームを覆う CSS 注入を防ぐため。mermaid の SVG/inline style は
+ * このサニタイズを経由しない（描画後に別途 DOM 注入される）ため影響しない。
  */
 function sanitizeHtml(html: string): string {
-  return DOMPurify.sanitize(html);
+  return DOMPurify.sanitize(html, {
+    FORBID_TAGS: ["style"],
+    FORBID_ATTR: ["style"],
+  });
 }
 
 /** Markdown ソースを安全な HTML 文字列へ描画する。 */

@@ -53,6 +53,28 @@ describe("extractFrontMatter", () => {
     expect(data).toBeNull();
     expect(body).toBe("body\n");
   });
+
+  it("keeps a scalar front-matter block in the body (no content loss)", () => {
+    // マッピングでない YAML は front matter とみなさず本文に残す。
+    const src = "---\nDraft\n---\n# 本文";
+    const { data, body } = extractFrontMatter(src);
+    expect(data).toBeNull();
+    expect(body).toBe(src);
+  });
+
+  it("keeps a sequence front-matter block in the body (no content loss)", () => {
+    const src = "---\n- a\n- b\n---\nBody";
+    const { data, body } = extractFrontMatter(src);
+    expect(data).toBeNull();
+    expect(body).toBe(src);
+  });
+
+  it("treats a comment-only block as empty front matter and strips it", () => {
+    const src = "---\n# just a comment\n---\nBody";
+    const { data, body } = extractFrontMatter(src);
+    expect(data).toBeNull();
+    expect(body).toBe("Body");
+  });
 });
 
 describe("renderFrontMatterTable", () => {

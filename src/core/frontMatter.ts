@@ -19,6 +19,11 @@ export interface FrontMatterResult {
 // 閉じ `---` の後は改行または文字列末尾を許容する。
 const FRONT_MATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n|$)/;
 
+/** YAML の全行コメント（行頭が # の行）を取り除く。実体があるかの判定に使う。 */
+function stripYamlComments(yaml: string): string {
+  return yaml.replace(/^[ \t]*#.*$/gm, "");
+}
+
 /**
  * 先頭のフロントマターを抽出する。
  * 無い場合・YAML パース失敗時は throw せず data:null・body:source を返し、本文を保持する。
@@ -32,14 +37,20 @@ export function extractFrontMatter(source: string): FrontMatterResult {
   const yamlText = match[1] ?? "";
   const body = source.slice(match[0].length);
 
-  // 空・空白のみのフロントマターは有効な空メタとして扱う（js-yaml v5 は空入力で throw する）。
-  if (yamlText.trim() === "") {
+  // 空・空白・コメントのみのフロントマターは有効な空メタとして扱い、ブロックを取り除く
+  // （js-yaml v5 は空文書で throw するため load を通さない）。
+  if (stripYamlComments(yamlText).trim() === "") {
     return { data: null, body };
   }
 
   try {
     const data = load(yamlText);
-    return { data: data ?? null, body };
+    // front matter はマッピング（key/value）のみ対象にする。スカラーや配列は front matter と
+    // みなさず本文に残す（取り除くと表にもならず内容が消えるため）。
+    if (!isRecord(data)) {
+      return { data: null, body: source };
+    }
+    return { data, body };
   } catch {
     // 壊れた YAML で本文が消えないよう、原文をそのまま返す。
     return { data: null, body: source };

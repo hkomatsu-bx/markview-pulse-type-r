@@ -173,6 +173,9 @@ function bootstrap(): void {
   let renderSeq = 0;
   // 直近の描画に mermaid 図が含まれていたか。テーマ切替時の再描画要否の判定に使う。
   let previewHasMermaid = false;
+  // 直近の描画で開始した mermaid 描画の完了 Promise。遅延描画で本文高さが変わるため、
+  // スクロール復元（reloadTab）が完了後に再調整するのに使う。
+  let pendingMermaid: Promise<void> = Promise.resolve();
 
   /** 本文最大幅をプレビューとツールバーラベルへ反映する。 */
   function applyContentWidth(): void {
@@ -247,11 +250,13 @@ function bootstrap(): void {
       active.viewMode === "preview" &&
       previewEl.querySelector("pre.mermaid") !== null;
     if (previewHasMermaid) {
-      void renderMermaid(
+      pendingMermaid = renderMermaid(
         previewEl,
         () => seq === renderSeq,
         (error) => void reportError("mermaid 図の描画に失敗しました", error),
       );
+    } else {
+      pendingMermaid = Promise.resolve();
     }
     renderStatusBar(
       statusbarEl,
@@ -433,7 +438,7 @@ function bootstrap(): void {
         const prevTop = contentEl.scrollTop;
         const prevHeight = contentEl.scrollHeight;
         render();
-        requestAnimationFrame(() => {
+        const restoreScroll = (): void => {
           const nextTop = preserveScrollRatio(
             prevTop,
             prevHeight,
@@ -441,7 +446,10 @@ function bootstrap(): void {
           );
           contentEl.scrollTop = nextTop;
           scrollPositions = setScrollPosition(scrollPositions, tabId, nextTop);
-        });
+        };
+        requestAnimationFrame(restoreScroll);
+        // mermaid は遅延描画で完了後に高さが変わるため、完了後にもう一度復元する。
+        void pendingMermaid.then(() => requestAnimationFrame(restoreScroll));
       }
     } catch (error) {
       await reportError("変更の再読込に失敗しました", error);

@@ -8,6 +8,11 @@ import type { AppTheme, LaunchTheme } from "../../types";
 
 /** ルート要素へテーマを適用する（data-theme 属性方式、styles.css と対応）。 */
 export function applyTheme(root: HTMLElement, theme: AppTheme): void {
+  // 同値の書き込みでも MutationObserver は発火するため、変化が無ければ書かない
+  // （data-theme 監視側の無駄な再描画を防ぐ）。
+  if (root.getAttribute("data-theme") === theme) {
+    return;
+  }
   root.setAttribute("data-theme", theme);
 }
 

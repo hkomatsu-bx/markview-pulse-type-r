@@ -23,10 +23,8 @@ import {
 } from "./diffCost";
 
 const ADDED_CLASS = "diff-added";
-// 削除語（旧テキストのファントム）を表す span/行のクラス。ui 側が差分 DOM から
-// 現在の原文を再構成する際に除外するため公開する（例: ui/mermaidRenderer）。
-export const REMOVED_CLASS = "diff-removed";
-export const REMOVED_ROW_CLASS = "diff-removed-row";
+const REMOVED_CLASS = "diff-removed";
+const REMOVED_ROW_CLASS = "diff-removed-row";
 
 /** span.diff-added / diff-removed を生成する。 */
 function makeSpan(
@@ -302,8 +300,14 @@ export function renderDiff(
   }
 
   // 2. 表のセル単位差分。処理済み表をグローバル掃引から除外する。
-  const nextTables = Array.from(container.querySelectorAll("table"));
-  const prevTables = Array.from(prevRoot.querySelectorAll("table"));
+  //    フロントマター表（.front-matter）は出現順の対応付けを狂わせる（有無で本文表と
+  //    ずれる）ため対象外にし、本文の表だけを index で対応付ける。
+  const nextTables = Array.from(
+    container.querySelectorAll<HTMLTableElement>("table:not(.front-matter)"),
+  );
+  const prevTables = Array.from(
+    prevRoot.querySelectorAll<HTMLTableElement>("table:not(.front-matter)"),
+  );
   const excludedNext = new Set<Element>();
   const excludedPrev = new Set<Element>();
   const pairCount = Math.min(nextTables.length, prevTables.length);
@@ -316,7 +320,16 @@ export function renderDiff(
     }
   }
 
-  // 3. グローバル語差分（表処理済みを除外して二重適用を防ぐ）。
+  // 2.5 mermaid ブロックは不可分に扱い、差分 span を注入しない。mermaid は要素の
+  //     innerHTML を図ソースとして読むため、内部に <span> が残ると解釈が壊れる。
+  for (const pre of container.querySelectorAll("pre.mermaid")) {
+    excludedNext.add(pre);
+  }
+  for (const pre of prevRoot.querySelectorAll("pre.mermaid")) {
+    excludedPrev.add(pre);
+  }
+
+  // 3. グローバル語差分（表処理済み・mermaid を除外して二重適用を防ぐ）。
   const prevText = extractText(prevRoot, excludedPrev);
   const nextText = extractText(container, excludedNext);
   applyDiff(container, diff(prevText, nextText), excludedNext);

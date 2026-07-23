@@ -46,6 +46,12 @@ pub fn read_file_content(path: &Path) -> Result<FileContent, AppError> {
     file.read_to_string(&mut content)
         .map_err(|e| AppError::from_io(path, &e))?;
 
+    // 先頭の UTF-8 BOM を除去する。Windows のメモ帳 / PowerShell 等が付与し、
+    // 残すとフロント側でフロントマターの `---` 検出や見出し解釈を阻害するため。
+    if content.starts_with('\u{feff}') {
+        content.replace_range(..'\u{feff}'.len_utf8(), "");
+    }
+
     Ok(FileContent {
         path: path.display().to_string(),
         content,
@@ -84,6 +90,17 @@ mod tests {
 
         assert_eq!(result.content, "# 見出し\n本文");
         assert!(result.path.contains("mvptr_read_existing.md"));
+        let _ = fs::remove_file(&path);
+    }
+
+    #[test]
+    fn strips_leading_utf8_bom() {
+        let path = write_temp("read_bom", "\u{feff}---\ntitle: x\n---\n# 見出し");
+
+        let result = read_file_content(&path).expect("should read");
+
+        assert_eq!(result.content, "---\ntitle: x\n---\n# 見出し");
+        assert!(!result.content.starts_with('\u{feff}'));
         let _ = fs::remove_file(&path);
     }
 
