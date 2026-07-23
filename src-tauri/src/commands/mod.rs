@@ -2,4 +2,5 @@
 
 pub mod cli;
 pub mod file;
+pub mod image;
 pub mod watcher;

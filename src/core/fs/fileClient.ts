@@ -46,9 +46,28 @@ export interface FileDropEvent {
   readonly paths: readonly string[];
 }
 
+// data URI 検証。wire を信用せず、data: 前置の文字列であることを境界で確認する。
+const imageDataUriSchema = z.string().refine((s) => s.startsWith("data:"), {
+  message: "data URI ではありません",
+});
+
 /** 指定パスの Markdown を読み込む。 */
 export async function readMarkdownFile(path: string): Promise<FileContent> {
   return fileContentSchema.parse(await invoke("read_markdown_file", { path }));
+}
+
+/**
+ * ローカル画像を data URI として読み込む。
+ * `mdPath` は開いている .md の絶対パス、`src` は Markdown 内の画像参照
+ * （percent-decode 済み）。読取は .md 配下に限定される（Rust 側で担保）。
+ */
+export async function readImageDataUri(
+  mdPath: string,
+  src: string,
+): Promise<string> {
+  return imageDataUriSchema.parse(
+    await invoke("read_image_data_uri", { mdPath, src }),
+  );
 }
 
 /**

@@ -689,6 +689,14 @@ body {
   padding: 0;
 }
 
+/* ---- 画像 ----
+ * 原寸が本文幅を超える画像（スクリーンショット等）を本文幅へ収める（GitHub 同様）。
+ * height:auto でアスペクト比を保持する。 */
+.markdown-body img {
+  max-width: 100%;
+  height: auto;
+}
+
 /* ---- mermaid 図 ----
  * コードブロックの体裁（地色・枠・パディング）を打ち消し、図を中央寄せする。
  * 描画完了後は <pre class="mermaid"> の中身が SVG に置換される。 */

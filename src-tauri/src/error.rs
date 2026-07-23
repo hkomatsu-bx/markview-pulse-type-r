@@ -16,6 +16,10 @@ pub enum AppError {
     Unreadable(String),
     #[error("監視を開始できません: {0}")]
     Watch(String),
+    #[error("アクセスが許可されていません: {0}")]
+    Forbidden(String),
+    #[error("画像を処理できません: {0}")]
+    InvalidImage(String),
 }
 
 impl AppError {

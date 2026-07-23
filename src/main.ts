@@ -65,6 +65,7 @@ import { filterMarkdownPaths } from "./core/fs/dropPaths";
 import { renderTabBar } from "./ui/tabBar";
 import { renderPreview } from "./ui/preview";
 import { renderMermaid } from "./ui/mermaidRenderer";
+import { loadLocalImages } from "./ui/imageLoader";
 import { renderStatusBar, setStatusNotice } from "./ui/statusBar";
 import {
   initToolbar,
@@ -257,6 +258,11 @@ function bootstrap(): void {
       );
     } else {
       pendingMermaid = Promise.resolve();
+    }
+    // ローカル画像（相対・絶対パス）を Rust 経由で data URI 化して埋め込む。
+    // プレビュー時のみ。遅延解決のため世代（seq）で古い描画への上書きを防ぐ。
+    if (active.viewMode === "preview") {
+      void loadLocalImages(previewEl, active.path, () => seq === renderSeq);
     }
     renderStatusBar(
       statusbarEl,
