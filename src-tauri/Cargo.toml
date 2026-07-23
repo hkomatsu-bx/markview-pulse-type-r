@@ -2,7 +2,7 @@
 # 配布 exe 名の源（bundle.active=false のため target/release/<name>.exe が成果物）。
 # 表示名は tauri.conf.json の productName / window.title が担う。
 name = "mviewr"
-version = "1.1.0"
+version = "1.1.1"
 description = "Markview Pulse Type R - Windows 向け Markdown プレビューア"
 authors = ["Markview Pulse Type R contributors"]
 edition = "2024"
