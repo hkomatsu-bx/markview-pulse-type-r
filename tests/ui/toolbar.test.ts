@@ -31,6 +31,7 @@ function makeElements(): ToolbarElements {
     contentWidth,
     zoom,
     print: document.createElement("button"),
+    savePdf: document.createElement("button"),
     openInEditor: document.createElement("button"),
     themeLight: document.createElement("button"),
     themeDark: document.createElement("button"),
@@ -49,6 +50,7 @@ function makeHandlers(
     onCycleWidth: vi.fn(),
     onCycleZoom: vi.fn(),
     onPrint: vi.fn(),
+    onSavePdf: vi.fn(),
     onOpenInEditor: vi.fn(),
     onSelectTheme: vi.fn(),
     ...overrides,
@@ -187,6 +189,15 @@ describe("initToolbar", () => {
     expect(onPrint).toHaveBeenCalledTimes(1);
   });
 
+  it("invokes onSavePdf when the save-as-PDF button is clicked", () => {
+    const onSavePdf = vi.fn();
+    initToolbar(els, makeHandlers({ onSavePdf }));
+
+    els.savePdf.click();
+
+    expect(onSavePdf).toHaveBeenCalledTimes(1);
+  });
+
   it("invokes onOpenInEditor when the editor button is clicked (FR-19)", () => {
     const onOpenInEditor = vi.fn();
     initToolbar(els, makeHandlers({ onOpenInEditor }));
@@ -198,6 +209,18 @@ describe("initToolbar", () => {
 });
 
 describe("setOpenInEditorEnabled（FR-19）", () => {
+  it("toggles the save-as-PDF button together with the editor button", () => {
+    const els = makeElements();
+
+    setOpenInEditorEnabled(els, false);
+    expect(els.savePdf.hasAttribute("disabled")).toBe(true);
+    expect(els.savePdf.getAttribute("aria-disabled")).toBe("true");
+
+    setOpenInEditorEnabled(els, true);
+    expect(els.savePdf.hasAttribute("disabled")).toBe(false);
+    expect(els.savePdf.getAttribute("aria-disabled")).toBe("false");
+  });
+
   it("enables the button when a tab is active", () => {
     const els = makeElements();
     els.openInEditor.setAttribute("disabled", "");

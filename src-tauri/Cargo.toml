@@ -30,6 +30,15 @@ thiserror = "2"
 tauri-plugin-opener = "2.5.4"
 base64 = "0.22.1"
 
+# WebView2 の PrintToPdf を直接叩くための COM バインディング。
+# window.print() 経路（GDI/EMF → XPS ドライバ）ではテキストがアウトライン化されるため、
+# PDF 書き出しは Chromium の PDF 生成器を使う PrintToPdf に寄せている。
+# バージョンは wry が使う webview2-com / windows と一致させる（別版を混ぜると
+# with_webview が返す COM 型が別クレート由来になり型不一致でビルドできない）。
+[target.'cfg(windows)'.dependencies]
+webview2-com = "0.38"
+windows = { version = "0.61", features = ["Win32_Foundation"] }
+
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 # 多重起動を防ぎ、2 回目以降の起動引数を既存インスタンスへ委譲する（デスクトップのみ）。
 tauri-plugin-single-instance = "2"

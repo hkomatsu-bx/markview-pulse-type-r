@@ -46,6 +46,7 @@ pub fn run() -> tauri::Result<()> {
         .invoke_handler(tauri::generate_handler![
             commands::file::read_markdown_file,
             commands::image::read_image_data_uri,
+            commands::print::print_to_pdf,
             commands::watcher::start_watch,
             commands::watcher::stop_watch,
             commands::cli::get_launch_files,

@@ -5,7 +5,7 @@
 // tab id 生成は副作用のため呼び出し側（ここ）の責務。
 
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { open, message } from "@tauri-apps/plugin-dialog";
+import { open, save, message } from "@tauri-apps/plugin-dialog";
 
 import type { AppTheme, LaunchTheme, Tab, TabId } from "./types";
 import {
@@ -25,6 +25,7 @@ import {
   getLaunchFiles,
   getLaunchTheme,
   openInEditor,
+  printToPdf,
   onFileChanged,
   onWatchError,
   onFileDrop,
@@ -35,7 +36,11 @@ import {
   type ThemeSource,
   type ThemeController,
 } from "./core/theme/themeController";
-import { pdfTitleFromFileName, buildPrintPageStyle } from "./core/print";
+import {
+  pdfTitleFromFileName,
+  pdfFileNameFromFileName,
+  buildPrintPageStyle,
+} from "./core/print";
 import { computeDocumentStats } from "./core/stats/documentStats";
 import {
   cycleContentWidth,
@@ -64,7 +69,7 @@ import {
 import { filterMarkdownPaths } from "./core/fs/dropPaths";
 import { renderTabBar } from "./ui/tabBar";
 import { renderPreview } from "./ui/preview";
-import { renderMermaid } from "./ui/mermaidRenderer";
+import { renderMermaid, type MermaidTheme } from "./ui/mermaidRenderer";
 import { loadLocalImages } from "./ui/imageLoader";
 import { renderStatusBar, setStatusNotice } from "./ui/statusBar";
 import {
@@ -142,6 +147,7 @@ function bootstrap(): void {
     contentWidth: requireEl("content-width", HTMLButtonElement),
     zoom: requireEl("content-zoom", HTMLButtonElement),
     print: requireEl("print", HTMLButtonElement),
+    savePdf: requireEl("save-pdf", HTMLButtonElement),
     openInEditor: requireEl("open-in-editor", HTMLButtonElement),
     themeLight: requireEl("theme-light", HTMLButtonElement),
     themeDark: requireEl("theme-dark", HTMLButtonElement),
@@ -157,6 +163,8 @@ function bootstrap(): void {
 
   /** 差分強調の縮退通知文言。 */
   const DIFF_DEGRADED_NOTICE = "文書が大きいため差分強調を省略しました";
+  /** 「PDF を保存しました」を状態バーに残す時間（ミリ秒）。 */
+  const SAVED_NOTICE_MS = 4000;
 
   // 表示設定（幅はアプリ全体・スクロール位置はタブ単位）。
   // いずれも DOM/描画の関心事のため、純粋な TabState とは分離して保持する。
@@ -204,6 +212,20 @@ function bootstrap(): void {
     }
     contentZoom = next;
     applyContentZoom();
+  }
+
+  // PDF 書き出し中のみ "light" を入れる。mermaid の配色は SVG へ焼き込まれ CSS 変数で
+  // 追従できないため、画面のテーマとは独立に指定する必要がある。
+  let mermaidThemeOverride: MermaidTheme | null = null;
+
+  /** mermaid 図に使う配色を決める（書き出し中の上書きを優先する）。 */
+  function currentMermaidTheme(): MermaidTheme {
+    if (mermaidThemeOverride !== null) {
+      return mermaidThemeOverride;
+    }
+    return document.documentElement.getAttribute("data-theme") === "dark"
+      ? "dark"
+      : "light";
   }
 
   /** 現在の状態を UI 全体へ反映する。 */
@@ -255,6 +277,7 @@ function bootstrap(): void {
         previewEl,
         () => seq === renderSeq,
         (error) => void reportError("mermaid 図の描画に失敗しました", error),
+        currentMermaidTheme(),
       );
     } else {
       pendingMermaid = Promise.resolve();
@@ -359,16 +382,84 @@ function bootstrap(): void {
   }
 
   /**
-   * 印刷 / PDF 書き出し。現在の表示内容を「見たまま」印刷する。
+   * プリンタへの印刷。現在の表示内容を「見たまま」印刷する。
    * 印刷用レイアウトは @media print（styles.css）が担い、ツールバー/タブを除外する。
    * 保存名・PDF Title（document.title）とヘッダー（@page）は render() で常時同期済みのため、
    * ここでは空状態をガードして印刷を起動するのみ。
+   *
+   * 注: この経路（WebView2 のネイティブ印刷 → XPS ドライバ）で PDF 化すると
+   * グリフがアウトライン化され、テキストを選択・検索できない PDF になる。
+   * PDF が目的の場合は onSaveAsPdf（WebView2 PrintToPdf）を使う。
    */
   function onPrint(): void {
     if (!getActiveTab(state)) {
       return;
     }
     window.print();
+  }
+
+  /**
+   * mermaid 図をライト配色へ描き替えてから `run` を実行し、終了後に元へ戻す。
+   * 本文の配色は @media print（styles.css）が印刷時にライトへ戻すため対象外で、
+   * CSS 変数に追従しない mermaid だけがこの明示的な再描画を要する。
+   * 図が無いときは再描画そのものを省く。
+   */
+  async function withLightMermaid(run: () => Promise<void>): Promise<void> {
+    if (!previewHasMermaid || currentMermaidTheme() === "light") {
+      await run();
+      return;
+    }
+    mermaidThemeOverride = "light";
+    // 再描画は本文 DOM を作り直すため、閲覧位置を戻せるよう控えておく。
+    const scrollTop = contentEl.scrollTop;
+    try {
+      render();
+      await pendingMermaid;
+      await run();
+    } finally {
+      mermaidThemeOverride = null;
+      render();
+      await pendingMermaid;
+      contentEl.scrollTop = scrollTop;
+    }
+  }
+
+  /**
+   * PDF として保存。保存先を選ばせ、WebView2 の PrintToPdf で書き出す。
+   * ヘッダーへは MD ファイル名の語幹を渡す（フッターのページ番号は WebView2 側が付与）。
+   * 画面がダークでも PDF は常にライト配色で出す（紙・PDF は白地が前提）。
+   * キャンセル時は何もしない。書き出し中は状態バーへ通知を出す。
+   */
+  function onSaveAsPdf(): void {
+    const active = getActiveTab(state);
+    if (!active) {
+      return;
+    }
+    const headerTitle = pdfTitleFromFileName(active.fileName);
+    void (async () => {
+      try {
+        const destination = await save({
+          defaultPath: pdfFileNameFromFileName(active.fileName),
+          filters: [{ name: "PDF", extensions: ["pdf"] }],
+        });
+        if (destination === null) {
+          return;
+        }
+        setStatusNotice(statusbarEl, "PDF を書き出しています…");
+        try {
+          await withLightMermaid(() => printToPdf(destination, headerTitle));
+        } catch (error) {
+          setStatusNotice(statusbarEl, null);
+          throw error;
+        }
+        setStatusNotice(statusbarEl, "PDF を保存しました");
+        window.setTimeout(() => {
+          setStatusNotice(statusbarEl, null);
+        }, SAVED_NOTICE_MS);
+      } catch (error) {
+        await reportError("PDF の保存に失敗しました", error);
+      }
+    })();
   }
 
   /** アクティブファイルを OS 既定アプリ（エディタ等）で開く。 */
@@ -493,6 +584,10 @@ function bootstrap(): void {
       overflowMenu.close();
       onPrint();
     },
+    onSavePdf: () => {
+      overflowMenu.close();
+      onSaveAsPdf();
+    },
     onOpenInEditor: () => {
       overflowMenu.close();
       onOpenInEditor();
@@ -522,6 +617,7 @@ function bootstrap(): void {
       copy: requireEl("ctx-copy", HTMLButtonElement),
       width: requireEl("ctx-width", HTMLButtonElement),
       print: requireEl("ctx-print", HTMLButtonElement),
+      savePdf: requireEl("ctx-save-pdf", HTMLButtonElement),
       editor: requireEl("ctx-editor", HTMLButtonElement),
     },
     {
@@ -546,6 +642,7 @@ function bootstrap(): void {
       },
       onWidth: onCycleWidth,
       onPrint,
+      onSavePdf: onSaveAsPdf,
       onEditor: onOpenInEditor,
     },
   );

@@ -2061,6 +2061,8 @@ dependencies = [
  "tauri-plugin-opener",
  "tauri-plugin-single-instance",
  "thiserror 2.0.18",
+ "webview2-com",
+ "windows",
 ]
 
 [[package]]

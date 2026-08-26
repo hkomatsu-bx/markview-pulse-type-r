@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   pdfTitleFromFileName,
+  pdfFileNameFromFileName,
   buildPrintPageStyle,
 } from "../../src/core/print";
 
@@ -63,5 +64,16 @@ describe("buildPrintPageStyle", () => {
     expect(buildPrintPageStyle("設計書.md")).toBe(
       '@page { @top-center { content: "設計書.md"; } }',
     );
+  });
+});
+
+describe("pdfFileNameFromFileName", () => {
+  it("replaces a markdown extension with .pdf", () => {
+    expect(pdfFileNameFromFileName("README.md")).toBe("README.pdf");
+    expect(pdfFileNameFromFileName("notes.markdown")).toBe("notes.pdf");
+  });
+
+  it("appends .pdf when the name has no markdown extension", () => {
+    expect(pdfFileNameFromFileName("changelog")).toBe("changelog.pdf");
   });
 });

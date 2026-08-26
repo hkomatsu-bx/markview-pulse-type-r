@@ -1,6 +1,6 @@
 // ツールバー。
 //
-// 「ファイルを開く」「プレビュー⇄原文」モード切替・「差分強調」トグル・「印刷 / PDF」を配線する。
+// 「ファイルを開く」「プレビュー⇄原文」モード切替・「差分強調」トグル・「印刷」「PDF で保存」を配線する。
 // 状態は持たず、操作はハンドラへ委譲し、表示反映（setViewModeButtons / setDiffToggle）は
 // 呼び出し側が状態に応じて行う。
 //
@@ -25,6 +25,7 @@ export interface ToolbarElements {
   readonly contentWidth: HTMLElement;
   readonly zoom: HTMLElement;
   readonly print: HTMLElement;
+  readonly savePdf: HTMLElement;
   readonly openInEditor: HTMLElement;
   readonly themeLight: HTMLElement;
   readonly themeDark: HTMLElement;
@@ -38,6 +39,7 @@ export interface ToolbarHandlers {
   readonly onCycleWidth: () => void;
   readonly onCycleZoom: () => void;
   readonly onPrint: () => void;
+  readonly onSavePdf: () => void;
   readonly onOpenInEditor: () => void;
   readonly onSelectTheme: (mode: LaunchTheme) => void;
 }
@@ -72,15 +74,17 @@ export function setDiffToggle(
 }
 
 /**
- * 「エディタで開く」の操作可否を反映する。
+ * 「エディタで開く」「PDF で保存」の操作可否を反映する。
  * @param enabled アクティブタブがあるか（true で操作可能）。
  */
 export function setOpenInEditorEnabled(
   els: ToolbarElements,
   enabled: boolean,
 ): void {
-  els.openInEditor.toggleAttribute("disabled", !enabled);
-  els.openInEditor.setAttribute("aria-disabled", String(!enabled));
+  for (const el of [els.openInEditor, els.savePdf]) {
+    el.toggleAttribute("disabled", !enabled);
+    el.setAttribute("aria-disabled", String(!enabled));
+  }
 }
 
 /** コンテンツ幅切替ボタンのラベルを現在値へ反映する。 */
@@ -148,6 +152,7 @@ export function initToolbar(
   els.contentWidth.addEventListener("click", handlers.onCycleWidth);
   els.zoom.addEventListener("click", handlers.onCycleZoom);
   els.print.addEventListener("click", handlers.onPrint);
+  els.savePdf.addEventListener("click", handlers.onSavePdf);
   els.openInEditor.addEventListener("click", handlers.onOpenInEditor);
   els.themeLight.addEventListener("click", () => {
     handlers.onSelectTheme("light");

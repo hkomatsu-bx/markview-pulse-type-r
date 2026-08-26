@@ -57,37 +57,42 @@
   --hl-operator: #57606a;
 }
 
-/* ダーク（明示 dark） */
-:root[data-theme="dark"] {
-  --bg: #202020;
-  --bg-elev: #2b2b2b;
-  --fg: #e8e8e8;
-  --fg-muted: #a0a0a0;
-  --border: #3a3a3a;
-  --code-bg: #2b2b2b;
-  --quote-bar: #4a4a4a;
-  --diff-add-bg: #18341f;
-  --diff-add-fg: #6ee7a0;
-  --diff-del-bg: #3a1d1d;
-  --diff-del-fg: #f0a0a0;
-  /* コードハイライト（highlight.js）トークン色。暗部: 彩度を抑えた多色系。 */
-  --hl-comment: #8b949e;
-  --hl-keyword: #ff7b72;
-  --hl-string: #a5d6ff;
-  --hl-number: #ffab70;
-  --hl-function: #d2a8ff;
-  --hl-title: #d2a8ff;
-  --hl-type: #56d4dd;
-  --hl-built_in: #79c0ff;
-  --hl-attr: #79c0ff;
-  --hl-variable: #ffa657;
-  --hl-meta: #8b949e;
-  --hl-tag: #7ee787;
-  --hl-operator: #8b949e;
+/* ダーク（明示 dark）
+ * 印刷時はダークのパレットを当てない（@media screen）。ライトのパレットは
+ * bare :root にあるため、印刷では自動的にライトへ戻る。背景を印刷する
+ * PDF 書き出し（PrintToPdf）でコード背景が黒塗りになるのを防ぐ。 */
+@media screen {
+  :root[data-theme="dark"] {
+    --bg: #202020;
+    --bg-elev: #2b2b2b;
+    --fg: #e8e8e8;
+    --fg-muted: #a0a0a0;
+    --border: #3a3a3a;
+    --code-bg: #2b2b2b;
+    --quote-bar: #4a4a4a;
+    --diff-add-bg: #18341f;
+    --diff-add-fg: #6ee7a0;
+    --diff-del-bg: #3a1d1d;
+    --diff-del-fg: #f0a0a0;
+    /* コードハイライト（highlight.js）トークン色。暗部: 彩度を抑えた多色系。 */
+    --hl-comment: #8b949e;
+    --hl-keyword: #ff7b72;
+    --hl-string: #a5d6ff;
+    --hl-number: #ffab70;
+    --hl-function: #d2a8ff;
+    --hl-title: #d2a8ff;
+    --hl-type: #56d4dd;
+    --hl-built_in: #79c0ff;
+    --hl-attr: #79c0ff;
+    --hl-variable: #ffa657;
+    --hl-meta: #8b949e;
+    --hl-tag: #7ee787;
+    --hl-operator: #8b949e;
+  }
 }
 
 /* OS 追従（data-theme 未指定でダーク環境のとき） */
-@media (prefers-color-scheme: dark) {
+@media screen and (prefers-color-scheme: dark) {
   :root:not([data-theme]) {
     --bg: #202020;
     --bg-elev: #2b2b2b;

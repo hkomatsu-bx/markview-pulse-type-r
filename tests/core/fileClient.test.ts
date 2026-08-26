@@ -29,6 +29,7 @@ import {
   getLaunchFiles,
   getLaunchTheme,
   openInEditor,
+  printToPdf,
   onFileChanged,
   onWatchError,
   onOpenFiles,
@@ -54,6 +55,17 @@ describe("fileClient IPC wrappers", () => {
       path: "a.md",
     });
     expect(result.content).toBe("# x");
+  });
+
+  it("printToPdf invokes print_to_pdf with camelCase path/headerTitle", async () => {
+    invokeMock.mockResolvedValue(undefined);
+
+    await printToPdf("C:/out/a.pdf", "a");
+
+    expect(invokeMock).toHaveBeenCalledWith("print_to_pdf", {
+      path: "C:/out/a.pdf",
+      headerTitle: "a",
+    });
   });
 
   it("startWatch invokes start_watch with camelCase tabId/path", async () => {

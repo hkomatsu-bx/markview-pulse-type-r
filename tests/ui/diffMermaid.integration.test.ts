@@ -44,7 +44,7 @@ describe("diff × mermaid 結合（#18）", () => {
 
     const mermaid = (await import("mermaid")).default;
     const onError = vi.fn();
-    await renderMermaid(container, () => true, onError);
+    await renderMermaid(container, () => true, onError, "light");
 
     expect(onError).not.toHaveBeenCalled();
     expect(mermaid.run).toHaveBeenCalledTimes(1);
@@ -65,7 +65,7 @@ describe("diff × mermaid 結合（#18）", () => {
     expect(pre?.textContent).toContain("A-->C");
 
     const mermaid = (await import("mermaid")).default;
-    await renderMermaid(container, () => true, vi.fn());
+    await renderMermaid(container, () => true, vi.fn(), "light");
     expect(mermaid.run).toHaveBeenCalled();
   });
 });

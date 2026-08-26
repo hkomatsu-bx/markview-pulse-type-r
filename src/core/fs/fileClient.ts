@@ -71,6 +71,18 @@ export async function readImageDataUri(
 }
 
 /**
+ * 現在の表示内容を PDF として書き出す（WebView2 の PrintToPdf を Rust 経由で起動）。
+ * `path` は保存先の絶対パス、`headerTitle` は各ページのヘッダーに出す文字列。
+ * 完了まで解決しない。失敗時は例外を伝播し、呼び出し側が reportError する。
+ */
+export async function printToPdf(
+  path: string,
+  headerTitle: string,
+): Promise<void> {
+  await invoke("print_to_pdf", { path, headerTitle });
+}
+
+/**
  * アクティブなファイルを OS 既定アプリ（エディタ等）で開く。
  * opener プラグイン経由。失敗時は例外を伝播し、呼び出し側が reportError する。
  */

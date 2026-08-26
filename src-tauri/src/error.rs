@@ -20,6 +20,8 @@ pub enum AppError {
     Forbidden(String),
     #[error("画像を処理できません: {0}")]
     InvalidImage(String),
+    #[error("PDF を書き出せません: {0}")]
+    Print(String),
 }
 
 impl AppError {

@@ -3,7 +3,9 @@
 // core/markdown が出力する <pre class="mermaid"> を mermaid で SVG 図へ置換する。
 // 動的 import・DOM 変更という副作用を含むため core ではなく ui 層に置く。
 // mermaid は大きいため import("mermaid") で遅延ロードし、対象が無ければロードしない。
-// テーマは data-theme に追従。競合対策として世代チェック（isCurrent）で古い描画を破棄する。
+// テーマは呼び出し側が明示的に渡す（DOM から読まない）。PDF 書き出しでは画面が
+// ダークでもライトで描く必要があり、配色は SVG へ焼き込まれるため上書きの余地が要る。
+// 競合対策として世代チェック（isCurrent）で古い描画を破棄する。
 
 import type { MermaidConfig } from "mermaid";
 
@@ -24,16 +26,19 @@ const DARK_THEME_VARIABLES: Readonly<Record<string, string | boolean>> = {
   tertiaryColor: "#262633",
 };
 
+/** mermaid 図の配色。画面のテーマとは独立に指定できる（PDF は常にライト）。 */
+export type MermaidTheme = "light" | "dark";
+
 /**
- * data-theme に応じた mermaid 設定を返す。ダークはノード配色も上書きする。
+ * 指定テーマの mermaid 設定を返す。ダークはノード配色も上書きする。
  * securityLevel は未信頼の図ソースを扱う前提で常に "strict" 固定（緩めない）。
  */
-export function buildMermaidConfig(): MermaidConfig {
+export function buildMermaidConfig(theme: MermaidTheme): MermaidConfig {
   const base: MermaidConfig = {
     startOnLoad: false,
     securityLevel: "strict",
   };
-  if (document.documentElement.getAttribute("data-theme") === "dark") {
+  if (theme === "dark") {
     return { ...base, theme: "base", themeVariables: DARK_THEME_VARIABLES };
   }
   return { ...base, theme: "default" };
@@ -52,12 +57,14 @@ let renderChain: Promise<void> = Promise.resolve();
  *
  * @param isCurrent 最新世代かを返す。実行時に false なら DOM に触れず破棄する。
  * @param onError 描画失敗時のハンドラ（無音失敗禁止）。
+ * @param theme 図の配色。画面のテーマと独立に指定する。
  * @returns この描画（直列化キュー上の当該段）の完了を表す Promise。
  */
 export function renderMermaid(
   container: HTMLElement,
   isCurrent: () => boolean,
   onError: (error: unknown) => void,
+  theme: MermaidTheme,
 ): Promise<void> {
   const nodes = Array.from(
     container.querySelectorAll<HTMLElement>("pre.mermaid"),
@@ -78,7 +85,7 @@ export function renderMermaid(
         return;
       }
       // テーマ切替のたびに反映する必要があるため、run 前に毎回設定する。
-      mermaid.initialize(buildMermaidConfig());
+      mermaid.initialize(buildMermaidConfig(theme));
       // suppressErrors: 不正な図は mermaid が当該ノードへエラー図を描く（可視・無音失敗ではない）。
       // 1 つの失敗が他の図を巻き込まないよう true にする。
       await mermaid.run({ nodes, suppressErrors: true });

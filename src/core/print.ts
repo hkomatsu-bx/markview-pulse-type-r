@@ -17,6 +17,15 @@ export function pdfTitleFromFileName(fileName: string): string {
 }
 
 /**
+ * PDF 保存ダイアログの既定ファイル名を MD ファイル名から導出する。
+ * 例: `README.md` → `README.pdf`。拡張子の最終補完は Rust 側でも行う
+ * （利用者がダイアログで拡張子を消して確定できるため）。
+ */
+export function pdfFileNameFromFileName(fileName: string): string {
+  return `${pdfTitleFromFileName(fileName)}.pdf`;
+}
+
+/**
  * CSS 文字列リテラル内で安全な形へエスケープする。
  * バックスラッシュと二重引用符をエスケープし、制御文字（改行等）は空白へ正規化して
  * `content` 宣言が壊れるのを防ぐ。ファイル名は信頼できない外部由来のため境界で必ず処理する。
