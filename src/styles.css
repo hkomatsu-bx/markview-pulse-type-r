@@ -890,25 +890,12 @@ body {
 }
 
 /* ---- 印刷 / PDF（FR-05）----
- * @page マージンボックスを1つでも定義すると、ブラウザ既定のヘッダー/フッター
- * （日付・タイトル・URL・ページ番号）は抑制される（Chromium 131+ / WebView2）。
- * ヘッダー中央のファイル名（content）は main.ts が動的注入し、ここでは体裁と
- * フッター右のページ番号のみを静的に定義する。
+ * 用紙余白のみ CSS で指定する。ヘッダー / フッター（ファイル名・ページ番号）は
+ * @page のマージンボックスが Chromium 未実装で描かれないため、PDF 書き出しでは
+ * WebView2 の印刷設定（commands/print.rs）側で指定する。余白値はそちらと揃える。
  */
 @page {
   margin: 16mm 14mm;
-
-  @top-center {
-    content: "";
-    font-size: 9pt;
-    color: #555;
-  }
-
-  @bottom-right {
-    content: counter(page) " / " counter(pages);
-    font-size: 9pt;
-    color: #555;
-  }
 }
 
 @media print {

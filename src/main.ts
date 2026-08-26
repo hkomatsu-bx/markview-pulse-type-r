@@ -36,11 +36,7 @@ import {
   type ThemeSource,
   type ThemeController,
 } from "./core/theme/themeController";
-import {
-  pdfTitleFromFileName,
-  pdfFileNameFromFileName,
-  buildPrintPageStyle,
-} from "./core/print";
+import { pdfTitleFromFileName, pdfFileNameFromFileName } from "./core/print";
 import { computeDocumentStats } from "./core/stats/documentStats";
 import {
   cycleContentWidth,
@@ -109,18 +105,6 @@ function basename(path: string): string {
 
 /** 空状態・既定のドキュメントタイトル（index.html の <title> と一致させる）。 */
 const APP_TITLE = "Markview Pulse Type R";
-
-/** 印刷ヘッダー用の動的 `@page` ルールを専用 <style> に反映する（無ければ生成）。 */
-function setPrintPageStyle(css: string): void {
-  const id = "print-page-style";
-  let styleEl = document.getElementById(id);
-  if (!(styleEl instanceof HTMLStyleElement)) {
-    styleEl = document.createElement("style");
-    styleEl.id = id;
-    document.head.appendChild(styleEl);
-  }
-  styleEl.textContent = css;
-}
 
 /** ユーザー向けにエラーを通知する（背景処理の失敗を握りつぶさない）。 */
 async function reportError(title: string, error: unknown): Promise<void> {
@@ -240,7 +224,7 @@ function bootstrap(): void {
     applyContentZoom();
     const active = getActiveTab(state);
     if (!active) {
-      // 空状態ではアプリ名へ戻す（印刷ヘッダーは onPrint で抑止されるため未設定で可）。
+      // 空状態ではアプリ名へ戻す。
       document.title = APP_TITLE;
       previewEl.replaceChildren();
       previewHasMermaid = false;
@@ -252,11 +236,10 @@ function bootstrap(): void {
       return;
     }
     // document.title を MD ファイル名（語幹）へ同期し、PDF の Title プロパティから
-    // アプリ名を排除する。印刷ヘッダー（@page）も同時に同期。
-    // 注: 保存ダイアログの既定ファイル名は WebView2 のネイティブ印刷経路が
-    // 決めるため Web 層からは制御できず、プリセットは断念している。
+    // アプリ名を排除する。
+    // 注: プリンタ印刷（Ctrl+P）の保存ダイアログの既定ファイル名は WebView2 の
+    // ネイティブ印刷経路が決めるため Web 層からは制御できない。
     document.title = pdfTitleFromFileName(active.fileName);
-    setPrintPageStyle(buildPrintPageStyle(active.fileName));
     emptyStateEl.classList.add("hidden");
     previewEl.classList.remove("hidden");
     setViewModeButtons(toolbarEls, active.viewMode);
