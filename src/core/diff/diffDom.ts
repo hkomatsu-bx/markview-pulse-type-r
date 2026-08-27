@@ -235,7 +235,7 @@ function applyDiff(
 /** 表 DOM を行×セルのテキスト行列へ正規化する（th/td の textContent）。 */
 function tableToMatrix(table: HTMLTableElement): TableMatrix {
   return Array.from(table.rows).map((row) =>
-    Array.from(row.cells).map((cell) => cell.textContent ?? ""),
+    Array.from(row.cells).map((cell) => cell.textContent),
   );
 }
 
