@@ -13,7 +13,10 @@
 // よく使う言語だけを明示登録する（未登録言語はエスケープのみで素通し）。
 // トークン色は styles.css 側で CSS 変数により明暗テーマへ追従させる。
 
-import MarkdownIt from "markdown-it";
+import MarkdownIt, {
+  type MarkdownIt as MarkdownItInstance,
+  type RendererRule,
+} from "markdown-it";
 import DOMPurify from "dompurify";
 import { extractFrontMatter, renderFrontMatterTable } from "./frontMatter";
 import { MERMAID_BLOCK_CLASS } from "./mermaidBlock";
@@ -74,7 +77,7 @@ function highlightCode(code: string, lang: string): string {
 }
 
 /** markdown-it インスタンスを生成する。設定を 1 か所に集約する。 */
-function createMarkdownRenderer(): MarkdownIt {
+function createMarkdownRenderer(): MarkdownItInstance {
   return new MarkdownIt({
     html: true,
     linkify: true,
@@ -95,13 +98,14 @@ const defaultFence = renderer.renderer.rules.fence;
 if (defaultFence === undefined) {
   throw new Error("markdown-it の既定 fence ルールが見つかりません");
 }
-renderer.renderer.rules.fence = (tokens, idx, options, env, self) => {
+const mermaidFence: RendererRule = (tokens, idx, options, env, self) => {
   const token = tokens[idx];
   if (token?.info.trim().split(/\s+/u)[0] === "mermaid") {
     return `<pre class="${MERMAID_BLOCK_CLASS}">${renderer.utils.escapeHtml(token.content)}</pre>`;
   }
   return defaultFence(tokens, idx, options, env, self);
 };
+renderer.renderer.rules.fence = mermaidFence;
 
 // 許可タグ（allowlist）。Markdown プレビューの描画に必要なものだけを並べる。
 //
