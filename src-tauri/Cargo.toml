@@ -28,7 +28,7 @@ serde_json = "1"
 notify = "8"
 thiserror = "2"
 tauri-plugin-opener = "2.5.4"
-base64 = "0.22.1"
+base64 = "0.23.1"
 
 # WebView2 の PrintToPdf を直接叩くための COM バインディング。
 # window.print() 経路（GDI/EMF → XPS ドライバ）ではテキストがアウトライン化されるため、
@@ -36,8 +36,8 @@ base64 = "0.22.1"
 # バージョンは wry が使う webview2-com / windows と一致させる（別版を混ぜると
 # with_webview が返す COM 型が別クレート由来になり型不一致でビルドできない）。
 [target.'cfg(windows)'.dependencies]
-webview2-com = "0.38"
-windows = { version = "0.61", features = ["Win32_Foundation"] }
+webview2-com = "0.39"
+windows = { version = "0.62", features = ["Win32_Foundation"] }
 # PrintToPdf の完了通知に待ち上限を設けるための time 機能のみ使う
 # （tauri の async ランタイムが tokio のため、同じランタイム上のタイマになる）。
 tokio = { version = "1", features = ["time"] }
