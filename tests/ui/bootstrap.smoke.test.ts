@@ -41,7 +41,18 @@ function installRealMarkup(): void {
     throw new Error("index.html の <body> を取り出せませんでした");
   }
   // <script type="module"> は読み込ませない（main.ts は明示的に import する）。
-  document.body.innerHTML = body[1].replace(/<script[\s\S]*?<\/script>/g, "");
+  // 正規表現での除去は大文字タグ等を取りこぼす不完全なフィルタになる
+  // （CodeQL js/incomplete-html-attribute-sanitization / js/bad-tag-filter）ため、
+  // DOMParser でパースし script 要素を DOM 経由で取り除く。
+  const parsedBody = new DOMParser().parseFromString(body[1], "text/html").body;
+  for (const script of parsedBody.querySelectorAll("script")) {
+    script.remove();
+  }
+  document.body.replaceChildren(
+    ...Array.from(parsedBody.childNodes, (node) =>
+      document.importNode(node, true),
+    ),
+  );
 }
 
 describe("bootstrap（合成ルート）", () => {
