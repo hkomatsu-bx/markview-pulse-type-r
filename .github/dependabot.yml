@@ -6,6 +6,12 @@
 #
 # エコシステムごとに PR をまとめる（groups）。まとめないと 1 依存 1 PR になり、
 # レビューと CI 実行が更新数ぶん増える。
+#
+# ただしグループは minor / patch に限る。メジャーを混ぜると、破壊的変更を含む 1 件が
+# CI を落としただけで同梱の無害なパッチ更新までマージ不能になる。グループから外れた
+# 更新は Dependabot が個別 PR にするため、メジャーは 1 件ずつ切り離して判断できる。
+# グループ分割で同時オープン数が増えるぶん open-pull-requests-limit を広げている
+# （上限に達した更新は PR が作られず取りこぼしになる）。
 
 version: 2
 updates:
@@ -13,13 +19,26 @@ updates:
     directory: /
     schedule:
       interval: weekly
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 10
+    ignore:
+      # typescript-eslint の peer 範囲は 8.68.0 時点で typescript ">=4.8.4 <6.1.0"。
+      # 上限を超える版に上げると npm ci が ERESOLVE で解決不能になり、CI が起動しない。
+      # typescript-eslint が追従したらこの ignore を外す。
+      - dependency-name: typescript
+        versions:
+          - ">=6.1.0"
     groups:
       # 本番依存は配布物に載るため、開発依存と分けて個別に判断できるようにする。
       production:
         dependency-type: production
+        update-types:
+          - minor
+          - patch
       development:
         dependency-type: development
+        update-types:
+          - minor
+          - patch
 
   - package-ecosystem: github-actions
     directory: /
@@ -29,13 +48,26 @@ updates:
       actions:
         patterns:
           - "*"
+        update-types:
+          - minor
+          - patch
 
   - package-ecosystem: cargo
     directory: /src-tauri
     schedule:
       interval: weekly
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 10
+    ignore:
+      # webview2-com / windows は wry が解決する版と一致していなければならない
+      # （理由は src-tauri/Cargo.toml の該当箇所に記載）。単独で上げると同じクレートが
+      # 二重に解決され、with_webview が返す COM 型と型不一致になりビルドできない。
+      # tauri 側が上げたタイミングで手動で追従する。
+      - dependency-name: webview2-com
+      - dependency-name: windows
     groups:
       cargo:
         patterns:
           - "*"
+        update-types:
+          - minor
+          - patch
