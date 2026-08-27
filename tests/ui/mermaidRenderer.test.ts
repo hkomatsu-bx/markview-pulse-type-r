@@ -47,6 +47,14 @@ describe("buildMermaidConfig", () => {
       document.documentElement.removeAttribute("data-theme");
     }
   });
+
+  // htmlLabels:true（既定）だとラベルが <foreignObject><div> で描かれ、
+  // sanitizeMermaidSvg の SVG-only allowlist が中身ごと除去してしまい、
+  // ボックスは残るが文字列だけ消える。純 SVG の <text> に倒すことで防ぐ。
+  it("disables htmlLabels so labels render as plain SVG text", () => {
+    expect(buildMermaidConfig("light").htmlLabels).toBe(false);
+    expect(buildMermaidConfig("dark").htmlLabels).toBe(false);
+  });
 });
 
 describe("renderMermaid", () => {

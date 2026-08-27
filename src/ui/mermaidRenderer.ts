@@ -54,6 +54,12 @@ export function buildMermaidConfig(theme: MermaidTheme): MermaidConfig {
   const base: MermaidConfig = {
     startOnLoad: false,
     securityLevel: "strict",
+    // mermaid は既定でノード・エッジのラベルを <foreignObject><div> で描く
+    // （securityLevel を strict にしても無効化されない）。sanitizeMermaidSvg は
+    // SVG のみの allowlist（USE_PROFILES: svg）で、foreignObject は DOMPurify が
+    // 中身ごと強制除去するタグのため、ラベル文字列だけが消えてボックスだけ残る。
+    // ラベルを純 SVG の <text> で描かせて allowlist の対象内に収める。
+    htmlLabels: false,
   };
   if (theme === "dark") {
     return { ...base, theme: "base", themeVariables: DARK_THEME_VARIABLES };
