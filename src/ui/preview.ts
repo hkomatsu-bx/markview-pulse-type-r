@@ -44,9 +44,38 @@ function memoKey(tab: Tab, diffHighlight: boolean): string {
   ].join(" ");
 }
 
+// 直近に描画した Markdown ソースと HTML。RenderMemo は「同じ入力の再描画」を
+// 省くだけで、ソースが変わると効かない。差分表示では 1 回の描画で prev/next の
+// 2 本を通すが、外部編集が続くと前回の next が今回の prev になるため、控えておけば
+// 2 本のうち 1 本を使い回せる（renderMarkdown は 50KB で 100ms 級と重い）。
+// 2 件保持するのは、1 件だと同一描画内の 2 本目が 1 本目を追い出して
+// 次回そのどちらも当たらなくなるため。
+const MARKDOWN_CACHE_SIZE = 2;
+
+interface MarkdownCacheEntry {
+  readonly source: string;
+  readonly html: string;
+}
+let markdownCache: readonly MarkdownCacheEntry[] = [];
+
+/** 同一ソースなら前回の描画結果を返す（renderMarkdown は純粋関数のため安全）。 */
+function renderMarkdownCached(source: string): string {
+  const hit = markdownCache.find((entry) => entry.source === source);
+  if (hit) {
+    return hit.html;
+  }
+  const html = renderMarkdown(source);
+  markdownCache = [{ source, html }, ...markdownCache].slice(
+    0,
+    MARKDOWN_CACHE_SIZE,
+  );
+  return html;
+}
+
 /** テスト用にメモを破棄する（モジュール状態を跨いだ汚染を防ぐ）。 */
 export function clearPreviewMemo(): void {
   memo = null;
+  markdownCache = [];
 }
 
 /**
@@ -88,12 +117,12 @@ export function renderPreview(
     result = {
       diffDegraded: renderDiff(
         container,
-        renderMarkdown(tab.previousSource),
-        renderMarkdown(tab.source),
+        renderMarkdownCached(tab.previousSource),
+        renderMarkdownCached(tab.source),
       ).degraded,
     };
   } else {
-    container.innerHTML = renderMarkdown(tab.source);
+    container.innerHTML = renderMarkdownCached(tab.source);
     result = { diffDegraded: false };
   }
 

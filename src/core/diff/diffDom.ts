@@ -14,6 +14,7 @@
 // degraded=true を返す（呼び出し側が利用者へ通知する＝無音失敗禁止）。
 
 import type { DiffOp } from "../../types";
+import { MERMAID_BLOCK_SELECTOR } from "../mermaidBlock";
 import { diff, countTokens } from "./diffEngine";
 import { diffTable, maxCols, type TableMatrix } from "./tableDiff";
 import {
@@ -393,10 +394,10 @@ export function renderDiff(
 
   // 2.5 mermaid ブロックは不可分に扱い、差分 span を注入しない。mermaid は要素の
   //     innerHTML を図ソースとして読むため、内部に <span> が残ると解釈が壊れる。
-  for (const pre of container.querySelectorAll("pre.mermaid")) {
+  for (const pre of container.querySelectorAll(MERMAID_BLOCK_SELECTOR)) {
     excludedNext.add(pre);
   }
-  for (const pre of prevRoot.querySelectorAll("pre.mermaid")) {
+  for (const pre of prevRoot.querySelectorAll(MERMAID_BLOCK_SELECTOR)) {
     excludedPrev.add(pre);
   }
 

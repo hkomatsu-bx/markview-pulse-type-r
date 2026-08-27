@@ -16,6 +16,7 @@
 import MarkdownIt from "markdown-it";
 import DOMPurify from "dompurify";
 import { extractFrontMatter, renderFrontMatterTable } from "./frontMatter";
+import { MERMAID_BLOCK_CLASS } from "./mermaidBlock";
 import hljs from "highlight.js/lib/core";
 import javascript from "highlight.js/lib/languages/javascript";
 import typescript from "highlight.js/lib/languages/typescript";
@@ -88,15 +89,16 @@ const renderer = createMarkdownRenderer();
 // <pre class="mermaid"> を出力する。ソースはエスケープして DOMPurify を通し、
 // mermaid はエスケープ復元後の textContent から原文を読む（ui/mermaidRenderer が描画）。
 // それ以外の言語は既定の fence（highlightCode 経由）へ委譲する。
-type FenceRule = NonNullable<MarkdownIt["renderer"]["rules"]["fence"]>;
-const defaultFence: FenceRule =
-  renderer.renderer.rules.fence ??
-  ((tokens, idx, options, _env, self) =>
-    self.renderToken(tokens, idx, options));
+// markdown-it は fence の既定ルールを必ず備える。欠けているなら想定した版ではなく、
+// 委譲先を失った状態でコードブロックが黙って壊れるため、ここで落として気づかせる。
+const defaultFence = renderer.renderer.rules.fence;
+if (defaultFence === undefined) {
+  throw new Error("markdown-it の既定 fence ルールが見つかりません");
+}
 renderer.renderer.rules.fence = (tokens, idx, options, env, self) => {
   const token = tokens[idx];
   if (token?.info.trim().split(/\s+/u)[0] === "mermaid") {
-    return `<pre class="mermaid">${renderer.utils.escapeHtml(token.content)}</pre>`;
+    return `<pre class="${MERMAID_BLOCK_CLASS}">${renderer.utils.escapeHtml(token.content)}</pre>`;
   }
   return defaultFence(tokens, idx, options, env, self);
 };
@@ -205,6 +207,17 @@ const ALLOWED_ATTR: readonly string[] = [
   "dir",
   "aria-hidden",
 ];
+
+// DOMPurify は window の無い環境で isSupported=false となり、sanitize が入力を
+// そのまま返す（例外も警告も出ない）。core は DOM 非依存という規約に対する意図的な
+// 例外としてここに置いているが、その代償として「サニタイズが黙って無効化される」
+// 最悪ケースを負う。読み込み時に検査して落とし、生 HTML が素通りする状態で
+// アプリが動き続けることを構造的に排除する。
+if (!DOMPurify.isSupported) {
+  throw new Error(
+    "DOMPurify を初期化できません（DOM の無い環境では Markdown を描画できません）",
+  );
+}
 
 /**
  * markdown-it の出力 HTML をサニタイズする。

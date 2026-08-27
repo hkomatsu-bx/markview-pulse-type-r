@@ -36,6 +36,7 @@ import {
   onOpenFilesPending,
 } from "./core/fs/fileClient";
 import { MARKDOWN_EXTENSIONS, isSamePath } from "./core/fs/markdownPath";
+import { MERMAID_BLOCK_SELECTOR } from "./core/mermaidBlock";
 import {
   createThemeController,
   type ThemeSource,
@@ -370,7 +371,7 @@ function startDeferredRendering(app: App, active: Tab, seq: number): void {
   // mermaid 図があれば遅延ロードして描画する（無ければ mermaid を import しない）。
   // renderPreview 直後の同期時点で判定する（この時点では未処理の pre.mermaid が残る）。
   st.previewHasMermaid =
-    isPreview && els.preview.querySelector("pre.mermaid") !== null;
+    isPreview && els.preview.querySelector(MERMAID_BLOCK_SELECTOR) !== null;
   st.pendingMermaid = st.previewHasMermaid
     ? renderMermaid(
         els.preview,

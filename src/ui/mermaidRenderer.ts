@@ -10,6 +10,7 @@
 import type { MermaidConfig } from "mermaid";
 
 import { sanitizeMermaidSvg } from "../core/markdown";
+import { MERMAID_BLOCK_SELECTOR } from "../core/mermaidBlock";
 
 /**
  * 描画済みの mermaid SVG をサニタイズし直す。
@@ -83,7 +84,7 @@ export function renderMermaid(
   theme: MermaidTheme,
 ): Promise<void> {
   const nodes = Array.from(
-    container.querySelectorAll<HTMLElement>("pre.mermaid"),
+    container.querySelectorAll<HTMLElement>(MERMAID_BLOCK_SELECTOR),
   );
   if (nodes.length === 0) {
     return Promise.resolve();
