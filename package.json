@@ -38,6 +38,7 @@
     "@tauri-apps/cli": "^2",
     "@types/markdown-it": "^14.1.2",
     "@types/mocha": "^10.0.10",
+    "@types/node": "^22.20.1",
     "@vitest/coverage-v8": "^4.1.11",
     "@wdio/cli": "^9.29.0",
     "@wdio/globals": "^9.29.0",

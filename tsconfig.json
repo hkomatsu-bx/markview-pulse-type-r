@@ -5,6 +5,7 @@
     "module": "ESNext",
     "lib": ["ES2020", "ES2022.Intl", "DOM", "DOM.Iterable"],
     "skipLibCheck": true,
+    "types": ["node"],
 
     /* Bundler mode */
     "moduleResolution": "bundler",
