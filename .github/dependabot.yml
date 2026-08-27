@@ -1,0 +1,41 @@
+# Dependabot による依存更新。
+#
+# 設定ファイルが無い間は「セキュリティ更新」しか動かず、定期的なバージョン更新は
+# 行われない。github-actions は追跡対象外のまま古いメジャーに留まり、
+# ランナー側の Node.js 更新で非推奨警告が出る状態になっていた。
+#
+# エコシステムごとに PR をまとめる（groups）。まとめないと 1 依存 1 PR になり、
+# レビューと CI 実行が更新数ぶん増える。
+
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      # 本番依存は配布物に載るため、開発依存と分けて個別に判断できるようにする。
+      production:
+        dependency-type: production
+      development:
+        dependency-type: development
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns:
+          - "*"
+
+  - package-ecosystem: cargo
+    directory: /src-tauri
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      cargo:
+        patterns:
+          - "*"
