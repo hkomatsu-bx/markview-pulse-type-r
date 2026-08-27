@@ -5,6 +5,9 @@
 // クリック座標へ配置し、ビューポート外へはみ出さないようクランプする。
 // 外側クリック / Escape / スクロール・リサイズ / 項目実行で閉じる。
 
+import { wireDismiss } from "./dismiss";
+import { setDisabled } from "./disabled";
+
 export interface ContextMenuElements {
   readonly menu: HTMLElement;
   readonly copy: HTMLButtonElement;
@@ -47,11 +50,6 @@ export function clampToViewport(
   const left = Math.max(margin, Math.min(x, viewW - menuW - margin));
   const top = Math.max(margin, Math.min(y, viewH - menuH - margin));
   return { left, top };
-}
-
-function setDisabled(button: HTMLButtonElement, disabled: boolean): void {
-  button.disabled = disabled;
-  button.setAttribute("aria-disabled", String(disabled));
 }
 
 /**
@@ -123,24 +121,8 @@ export function initContextMenu(
   els.savePdf.addEventListener("click", run(handlers.onSavePdf));
   els.editor.addEventListener("click", run(handlers.onEditor));
 
-  // 外側クリックで閉じる（メニュー内クリックは各 run が閉じるため二重でも無害）。
-  document.addEventListener("click", (event) => {
-    if (!isOpen()) {
-      return;
-    }
-    const target = event.target;
-    if (target instanceof Node && els.menu.contains(target)) {
-      return;
-    }
-    close();
-  });
-
-  document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && isOpen()) {
-      event.preventDefault();
-      close();
-    }
-  });
+  // 外側クリック / Escape で閉じる（メニュー内クリックは各 run が閉じるため二重でも無害）。
+  wireDismiss({ isOpen, close, insideOf: [els.menu] });
 
   // スクロール/リサイズで座標がずれるため閉じる。
   window.addEventListener("scroll", close, true);

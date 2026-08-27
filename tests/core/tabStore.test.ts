@@ -18,7 +18,6 @@ function makeTab(id: string, path: string, source = ""): Tab {
     source,
     previousSource: source,
     viewMode: "preview",
-    isWatching: false,
   };
 }
 

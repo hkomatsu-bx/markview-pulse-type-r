@@ -15,7 +15,6 @@ export type LaunchTheme = "light" | "dark" | "system";
 export interface FileContent {
   readonly path: string;
   readonly content: string;
-  readonly modifiedMs: number;
 }
 
 /** 1 つのタブの状態。全フィールド readonly（不変更新）。 */
@@ -26,7 +25,6 @@ export interface Tab {
   readonly source: string; // 現在のソース
   readonly previousSource: string; // 差分基準（前回内容）
   readonly viewMode: ViewMode;
-  readonly isWatching: boolean;
 }
 
 export type DiffOpKind = "equal" | "insert" | "delete";

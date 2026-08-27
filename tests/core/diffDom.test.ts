@@ -134,6 +134,25 @@ describe("renderDiff — テーブルのセル単位差分（FR-11）", () => {
     expect(cell?.querySelector(".diff-added")?.textContent).toBe("y");
   });
 
+  it("keeps inline formatting inside an inserted row (no text flattening)", () => {
+    renderDiff(
+      container,
+      "<table><tbody><tr><td>a</td></tr></tbody></table>",
+      "<table><tbody><tr><td>a</td></tr>" +
+        '<tr><td><a href="https://example.com">L</a> <strong>B</strong></td></tr>' +
+        "</tbody></table>",
+    );
+
+    const insertedRow = container.querySelectorAll("tr")[1];
+    // 行全体は緑で包まれる。
+    expect(insertedRow?.querySelector(".diff-added")).not.toBeNull();
+    // 包んでもセル内の書式（リンク・強調）は失われない。
+    expect(insertedRow?.querySelector("a")?.getAttribute("href")).toBe(
+      "https://example.com",
+    );
+    expect(insertedRow?.querySelector("strong")?.textContent).toBe("B");
+  });
+
   it("inserts a phantom removed row for a deleted table row (L1)", () => {
     renderDiff(
       container,

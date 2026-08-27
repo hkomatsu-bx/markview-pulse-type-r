@@ -32,7 +32,8 @@ import {
   printToPdf,
   onFileChanged,
   onWatchError,
-  onOpenFiles,
+  onOpenFilesPending,
+  takePendingOpenFiles,
   onFileDrop,
 } from "../../src/core/fs/fileClient";
 
@@ -46,7 +47,6 @@ describe("fileClient IPC wrappers", () => {
     invokeMock.mockResolvedValue({
       path: "a.md",
       content: "# x",
-      modifiedMs: 1,
     });
 
     const result = await readMarkdownFile("a.md");
@@ -57,15 +57,25 @@ describe("fileClient IPC wrappers", () => {
     expect(result.content).toBe("# x");
   });
 
-  it("printToPdf invokes print_to_pdf with camelCase path/headerTitle", async () => {
+  it("printToPdf invokes print_to_pdf with camelCase args including margins", async () => {
     invokeMock.mockResolvedValue(undefined);
 
-    await printToPdf("C:/out/a.pdf", "a");
+    await printToPdf("C:/out/a.pdf", "a", { vertical: 16, horizontal: 14 });
 
     expect(invokeMock).toHaveBeenCalledWith("print_to_pdf", {
       path: "C:/out/a.pdf",
       headerTitle: "a",
+      marginsMm: { vertical: 16, horizontal: 14 },
     });
+  });
+
+  it("takePendingOpenFiles drains the forwarded path list", async () => {
+    invokeMock.mockResolvedValue(["a.md", "b.markdown"]);
+
+    const result = await takePendingOpenFiles();
+
+    expect(invokeMock).toHaveBeenCalledWith("take_pending_open_files");
+    expect(result).toEqual(["a.md", "b.markdown"]);
   });
 
   it("startWatch invokes start_watch with camelCase tabId/path", async () => {
@@ -135,8 +145,9 @@ describe("fileClient event subscriptions", () => {
       return Promise.resolve(() => {});
     });
     const handler = vi.fn();
+    const onInvalid = vi.fn();
 
-    await onFileChanged(handler);
+    await onFileChanged(handler, onInvalid);
     captured({ payload: { tabId: "tab-1", path: "a.md" } });
 
     expect(listenMock).toHaveBeenCalledWith(
@@ -146,7 +157,7 @@ describe("fileClient event subscriptions", () => {
     expect(handler).toHaveBeenCalledWith({ tabId: "tab-1", path: "a.md" });
   });
 
-  it("onOpenFiles forwards the validated path list to the handler", async () => {
+  it("onOpenFilesPending notifies the handler without carrying paths", async () => {
     let captured: (event: { payload: unknown }) => void = () => {};
     listenMock.mockImplementation((_name: string, cb: typeof captured) => {
       captured = cb;
@@ -154,11 +165,17 @@ describe("fileClient event subscriptions", () => {
     });
     const handler = vi.fn();
 
-    await onOpenFiles(handler);
-    captured({ payload: ["a.md", "b.markdown"] });
+    await onOpenFilesPending(handler);
+    captured({ payload: null });
 
-    expect(listenMock).toHaveBeenCalledWith("open-files", expect.any(Function));
-    expect(handler).toHaveBeenCalledWith(["a.md", "b.markdown"]);
+    // パスはイベントに載せず、ハンドラが take_pending_open_files で回収する
+    // （購読確立前に届いた転送を取りこぼさないため）。
+    expect(listenMock).toHaveBeenCalledWith(
+      "open-files-pending",
+      expect.any(Function),
+    );
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect(handler).toHaveBeenCalledWith();
   });
 
   it("onWatchError forwards the error payload to the handler", async () => {
@@ -168,8 +185,9 @@ describe("fileClient event subscriptions", () => {
       return Promise.resolve(() => {});
     });
     const handler = vi.fn();
+    const onInvalid = vi.fn();
 
-    await onWatchError(handler);
+    await onWatchError(handler, onInvalid);
     captured({ payload: { tabId: "tab-1", message: "boom" } });
 
     expect(listenMock).toHaveBeenCalledWith(
@@ -179,46 +197,45 @@ describe("fileClient event subscriptions", () => {
     expect(handler).toHaveBeenCalledWith({ tabId: "tab-1", message: "boom" });
   });
 
-  it("onFileChanged ignores an invalid payload (Zod boundary)", async () => {
+  it("onFileChanged surfaces an invalid payload instead of dropping it (Zod boundary)", async () => {
     let captured: (event: { payload: unknown }) => void = () => {};
     listenMock.mockImplementation((_name: string, cb: typeof captured) => {
       captured = cb;
       return Promise.resolve(() => {});
     });
     const handler = vi.fn();
+    const onInvalid = vi.fn();
 
-    await onFileChanged(handler);
+    await onFileChanged(handler, onInvalid);
     captured({ payload: { tabId: 123 } });
 
     expect(handler).not.toHaveBeenCalled();
+    // 契約破壊は無音で捨てず、必ず通知経路へ流す（No silent failures）。
+    expect(onInvalid).toHaveBeenCalledTimes(1);
+    expect(onInvalid.mock.calls[0]?.[0]).toBeInstanceOf(Error);
   });
 
-  it("onWatchError ignores an invalid payload (Zod boundary)", async () => {
+  it("onWatchError surfaces an invalid payload instead of dropping it (Zod boundary)", async () => {
     let captured: (event: { payload: unknown }) => void = () => {};
     listenMock.mockImplementation((_name: string, cb: typeof captured) => {
       captured = cb;
       return Promise.resolve(() => {});
     });
     const handler = vi.fn();
+    const onInvalid = vi.fn();
 
-    await onWatchError(handler);
+    await onWatchError(handler, onInvalid);
     captured({ payload: { message: null } });
 
     expect(handler).not.toHaveBeenCalled();
+    expect(onInvalid).toHaveBeenCalledTimes(1);
   });
 
-  it("onOpenFiles ignores an invalid payload (Zod boundary)", async () => {
-    let captured: (event: { payload: unknown }) => void = () => {};
-    listenMock.mockImplementation((_name: string, cb: typeof captured) => {
-      captured = cb;
-      return Promise.resolve(() => {});
-    });
-    const handler = vi.fn();
+  it("takePendingOpenFiles rejects a malformed path list (Zod boundary)", async () => {
+    // 転送パスの検証はイベントではなく取り出し側（コマンド）の境界で行う。
+    invokeMock.mockResolvedValue([1, 2, 3]);
 
-    await onOpenFiles(handler);
-    captured({ payload: [1, 2, 3] });
-
-    expect(handler).not.toHaveBeenCalled();
+    await expect(takePendingOpenFiles()).rejects.toThrow();
   });
 });
 
@@ -243,8 +260,9 @@ describe("fileClient onFileDrop", () => {
   it("forwards validated paths on a drop event", async () => {
     const ref = captureDrop();
     const handler = vi.fn();
+    const onInvalid = vi.fn();
 
-    await onFileDrop(handler);
+    await onFileDrop(handler, onInvalid);
     ref.fire({ type: "drop", paths: ["a.md", "b.md"] });
 
     expect(handler).toHaveBeenCalledWith({
@@ -253,21 +271,25 @@ describe("fileClient onFileDrop", () => {
     });
   });
 
-  it("falls back to empty paths when a drop payload fails validation", async () => {
+  it("surfaces a drop payload that fails validation instead of dropping silently", async () => {
     const ref = captureDrop();
     const handler = vi.fn();
+    const onInvalid = vi.fn();
 
-    await onFileDrop(handler);
+    await onFileDrop(handler, onInvalid);
     ref.fire({ type: "drop", paths: [1, 2] });
 
-    expect(handler).toHaveBeenCalledWith({ kind: "drop", paths: [] });
+    // パスを取り出せないドロップは「何も起きない」ため、空配列で握りつぶさない。
+    expect(handler).not.toHaveBeenCalled();
+    expect(onInvalid).toHaveBeenCalledTimes(1);
   });
 
   it("maps enter and over to empty-path events", async () => {
     const ref = captureDrop();
     const handler = vi.fn();
+    const onInvalid = vi.fn();
 
-    await onFileDrop(handler);
+    await onFileDrop(handler, onInvalid);
     ref.fire({ type: "enter", paths: ["ignored"] });
     ref.fire({ type: "over" });
 
@@ -278,8 +300,9 @@ describe("fileClient onFileDrop", () => {
   it("maps leave to a leave event", async () => {
     const ref = captureDrop();
     const handler = vi.fn();
+    const onInvalid = vi.fn();
 
-    await onFileDrop(handler);
+    await onFileDrop(handler, onInvalid);
     ref.fire({ type: "leave" });
 
     expect(handler).toHaveBeenCalledWith({ kind: "leave", paths: [] });

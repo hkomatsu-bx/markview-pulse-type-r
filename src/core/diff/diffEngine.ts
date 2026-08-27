@@ -16,9 +16,34 @@ interface RawOp {
   readonly text: string;
 }
 
-/** テキストを「連続する空白」または「連続する非空白」のトークン列へ分割する。 */
+// 語境界の判定に使うセグメンタ。日本語のように分かち書きしない言語では
+// 「連続する非空白」が文丸ごと 1 トークンになり、語単位差分が行単位差分へ退化する
+// （「10時開始」→「11時開始」の 1 文字変更で文全体が赤緑になる）。
+// Intl.Segmenter の語分割を挟むことで、CJK でも変更箇所だけを強調できる。
+const wordSegmenter = new Intl.Segmenter("ja", { granularity: "word" });
+
+/** 空白を含まない断片を語へ分割する。分割できなければ元の断片をそのまま返す。 */
+function segmentWords(chunk: string): string[] {
+  const words = Array.from(wordSegmenter.segment(chunk), (s) => s.segment);
+  return words.length > 0 ? words : [chunk];
+}
+
+/**
+ * テキストを差分の最小単位へ分割する。
+ * 空白の連なりは 1 トークンとして保ち、非空白の連なりはさらに語へ分割する
+ * （ASCII の語は元々 1 語なので分割結果は従来と変わらない）。
+ */
 export function tokenize(text: string): string[] {
-  return text.match(/\s+|\S+/g) ?? [];
+  const chunks = text.match(/\s+|\S+/g) ?? [];
+  const tokens: string[] = [];
+  for (const chunk of chunks) {
+    if (/^\s/.test(chunk)) {
+      tokens.push(chunk);
+    } else {
+      tokens.push(...segmentWords(chunk));
+    }
+  }
+  return tokens;
 }
 
 /** トークン数を数える（差分コスト見積もり用・O(n)）。 */

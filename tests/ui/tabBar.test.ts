@@ -13,7 +13,6 @@ function makeTab(id: string, fileName: string): Tab {
     source: "",
     previousSource: "",
     viewMode: "preview",
-    isWatching: false,
   };
 }
 

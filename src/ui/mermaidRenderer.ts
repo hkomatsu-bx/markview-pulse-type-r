@@ -9,6 +9,22 @@
 
 import type { MermaidConfig } from "mermaid";
 
+import { sanitizeMermaidSvg } from "../core/markdown";
+
+/**
+ * 描画済みの mermaid SVG をサニタイズし直す。
+ * 変化が無ければ DOM を書き換えない（無駄な再パースと参照の付け替えを避ける）。
+ */
+function sanitizeRenderedSvg(container: HTMLElement): void {
+  for (const svg of Array.from(container.querySelectorAll("svg"))) {
+    const original = svg.outerHTML;
+    const safe = sanitizeMermaidSvg(original);
+    if (safe !== original) {
+      svg.outerHTML = safe;
+    }
+  }
+}
+
 // ダーク用のノード配色。mermaid 既定の dark テーマはノード地色が濃いグレーで
 // アプリ背景（--bg: #202020）に埋もれるため、ライトのラベンダーに呼応する
 // 濃い紫系へ持ち上げ、明るい枠・文字で視認性を確保する。
@@ -89,6 +105,12 @@ export function renderMermaid(
       // suppressErrors: 不正な図は mermaid が当該ノードへエラー図を描く（可視・無音失敗ではない）。
       // 1 つの失敗が他の図を巻き込まないよう true にする。
       await mermaid.run({ nodes, suppressErrors: true });
+      // mermaid の出力は renderMarkdown（唯一の XSS チョークポイント）を通らないため、
+      // 描画後にここでサニタイズし直して「DOM へ入る HTML は必ず検査済み」を保つ。
+      if (!isCurrent()) {
+        return;
+      }
+      sanitizeRenderedSvg(container);
     } catch (error) {
       // import 失敗など致命的なエラーのみここへ到達する。最新世代のときだけ通知する。
       if (isCurrent()) {

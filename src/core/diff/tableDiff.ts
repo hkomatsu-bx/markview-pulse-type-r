@@ -15,6 +15,7 @@ import {
   estimateDiffCost,
   shouldDegradeDiff,
   MAX_TABLE_DIFF_COST,
+  MAX_TABLE_ROW_COST,
   MAX_CELL_DIFF_COST,
 } from "./diffCost";
 
@@ -45,7 +46,7 @@ export interface TableDiffResult {
 }
 
 /** 行の列数の最大値（不揃いな行に対する列数判定）。 */
-function maxCols(matrix: TableMatrix): number {
+export function maxCols(matrix: TableMatrix): number {
   return matrix.reduce((acc, row) => Math.max(acc, row.length), 0);
 }
 
@@ -157,6 +158,18 @@ export function diffTable(
   }
 
   // L1: 行数相違 → 行 LCS。
+  // 行 LCS 自体が O(prev行数 × next行数) の DP 行列を確保するため、走らせる前に
+  // 行数の積で頭打ちを掛ける。セルがほぼ空の巨大表はトークン数がゼロに近く
+  // 全文コストガードを素通りするので、ここで止めないと数百 MB〜数 GB の確保に
+  // 達して長時間フリーズや RangeError になる。
+  if (
+    shouldDegradeDiff(
+      estimateDiffCost(prev.length, next.length),
+      MAX_TABLE_ROW_COST,
+    )
+  ) {
+    return degradedResult();
+  }
   const rows = alignRows(prev.map(rowKey), next.map(rowKey));
   const insertedRows: number[] = [];
   const deletedRows: number[] = [];

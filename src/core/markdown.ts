@@ -101,21 +101,143 @@ renderer.renderer.rules.fence = (tokens, idx, options, env, self) => {
   return defaultFence(tokens, idx, options, env, self);
 };
 
+// 許可タグ（allowlist）。Markdown プレビューの描画に必要なものだけを並べる。
+//
+// 禁止側を列挙する方式（FORBID_TAGS）は、DOMPurify 既定の許可集合が版を追うごとに
+// 広がるため取りこぼしが構造的に避けられない（実際 form/input を禁止しても
+// optgroup・label・fieldset・output・dialog は素通りし、入力欄風の偽 UI を組める）。
+// GitHub と同じく「必要なタグだけ通す」へ寄せ、未知・将来追加のタグは既定で落とす。
+//
+// 意図的に含めないもの:
+// - style / フォーム系（form・input・button 等）: 全面オーバーレイによる UI 偽装や、
+//   偽の資格情報入力（フィッシング）を組み立てられるため。送信自体は CSP が阻むが、
+//   入力させた時点で漏洩し得る。
+// - script・iframe・object 等: DOMPurify 既定でも落ちるが、allowlist なので自明に不許可。
+const ALLOWED_TAGS: readonly string[] = [
+  // 見出し・段落・区切り
+  "h1",
+  "h2",
+  "h3",
+  "h4",
+  "h5",
+  "h6",
+  "p",
+  "br",
+  "hr",
+  "div",
+  "span",
+  // 強調・インライン
+  "strong",
+  "b",
+  "em",
+  "i",
+  "s",
+  "del",
+  "ins",
+  "mark",
+  "sub",
+  "sup",
+  "small",
+  "u",
+  "abbr",
+  "cite",
+  "q",
+  "dfn",
+  "time",
+  "kbd",
+  "samp",
+  "var",
+  // リンク・画像
+  "a",
+  "img",
+  // リスト
+  "ul",
+  "ol",
+  "li",
+  "dl",
+  "dt",
+  "dd",
+  // 引用・コード
+  "blockquote",
+  "pre",
+  "code",
+  // 表
+  "table",
+  "thead",
+  "tbody",
+  "tfoot",
+  "tr",
+  "th",
+  "td",
+  "caption",
+  "colgroup",
+  "col",
+  // 折りたたみ（GFM で使われる）
+  "details",
+  "summary",
+  // ルビ（日本語文書）
+  "ruby",
+  "rt",
+  "rp",
+  "rb",
+];
+
+// 許可属性。既定から style を除き、描画に要るものだけを通す。
+// class は highlight.js のトークン span と mermaid の pre で必須。
+const ALLOWED_ATTR: readonly string[] = [
+  "href",
+  "src",
+  "alt",
+  "title",
+  "class",
+  "id",
+  "start",
+  "reversed",
+  "type",
+  "colspan",
+  "rowspan",
+  "align",
+  "width",
+  "height",
+  "open",
+  "datetime",
+  "lang",
+  "dir",
+  "aria-hidden",
+];
+
 /**
  * markdown-it の出力 HTML をサニタイズする。
- * DOMPurify の既定の安全プロファイルを用い、<script>・イベントハンドラ属性
- * （onerror 等）・javascript: URI を除去する。class は既定で許可されるため
- * highlight.js のトークン span は保持される。target 属性も既定で除去されるため、
+ *
+ * ALLOWED_TAGS / ALLOWED_ATTR の allowlist 方式で、列挙されていない要素・属性は
+ * すべて落とす（<script>・イベントハンドラ属性・style・フォーム系を含む）。
+ * javascript: URI は DOMPurify が既定の URI 検査で除去する。target を許可しないため、
  * リンクは常に同一コンテキストで開き reverse tabnabbing は発生しない。
- * さらに <style> 要素と style 属性を禁止する（GitHub 同様）。既定では許可されるが、
- * 未信頼の .md が全面オーバーレイ（UI 偽装）や background-image によるビーコンで
- * アプリのクロームを覆う CSS 注入を防ぐため。mermaid の SVG/inline style は
- * このサニタイズを経由しない（描画後に別途 DOM 注入される）ため影響しない。
+ * mermaid の SVG/inline style はこのサニタイズを経由しない（描画後に別途 DOM 注入
+ * される）ため影響しない。
  */
 function sanitizeHtml(html: string): string {
   return DOMPurify.sanitize(html, {
-    FORBID_TAGS: ["style"],
-    FORBID_ATTR: ["style"],
+    ALLOWED_TAGS: [...ALLOWED_TAGS],
+    ALLOWED_ATTR: [...ALLOWED_ATTR],
+  });
+}
+
+/**
+ * mermaid が生成した SVG をサニタイズする。
+ *
+ * mermaid.run は `renderMarkdown` を経由せず DOM へ直接 SVG を注入するため、
+ * 放置すると「全ての innerHTML 流入はサニタイズ済み」という不変条件が破れ、
+ * 安全性が mermaid 内蔵サニタイザ（securityLevel:"strict"）への全面委任になる。
+ * 図の見た目に必要な SVG プロファイルと `<style>` は許可しつつ、スクリプトや
+ * イベントハンドラ属性は落として多層防御を回復する。
+ */
+export function sanitizeMermaidSvg(svg: string): string {
+  return DOMPurify.sanitize(svg, {
+    USE_PROFILES: { svg: true, svgFilters: true },
+    // mermaid は図の配色・字送りを SVG 内の <style> に出力するため、ここだけ許可する
+    // （本文側の style 禁止とは別扱い。SVG 内に閉じるため UI 偽装には使えない）。
+    ADD_TAGS: ["style"],
   });
 }
 

@@ -5,7 +5,29 @@
 // 印刷ヘッダー / フッターは CSS では作れない（Chromium は @page のマージンボックスを
 // 未実装）ため、PDF では WebView2 の印刷設定側（commands/print.rs）で指定する。
 
-const MARKDOWN_EXTENSION = /\.(?:md|markdown)$/i;
+import { MARKDOWN_EXTENSION_RE } from "./fs/markdownPath";
+
+/**
+ * 用紙余白（ミリメートル）。値の源はここ 1 か所。
+ *
+ * 画面の `@page` は main.ts がこの値から組み立てて注入し、PDF 書き出しは同じ値を
+ * IPC で Rust へ渡す（`@page` は CSS 変数を受け付けないため注入で単一化する）。
+ * 数値を 2 か所に書くと単位換算を挟むぶん乖離しやすく、しかもテストで検出できない。
+ */
+export const PAGE_MARGIN_MM: {
+  readonly vertical: number;
+  readonly horizontal: number;
+} = {
+  vertical: 16,
+  horizontal: 14,
+};
+
+/** `PAGE_MARGIN_MM` を `@page` ルールの文字列へ変換する。 */
+export function buildPageMarginCss(
+  margins: typeof PAGE_MARGIN_MM = PAGE_MARGIN_MM,
+): string {
+  return `@page { margin: ${String(margins.vertical)}mm ${String(margins.horizontal)}mm; }`;
+}
 
 /**
  * PDF の保存名・Title プロパティに使う文字列を、MD ファイル名から導出する。
@@ -13,7 +35,7 @@ const MARKDOWN_EXTENSION = /\.(?:md|markdown)$/i;
  * 例: `README.md` → `README`、`notes.markdown` → `notes`、`a.md.md` → `a.md`。
  */
 export function pdfTitleFromFileName(fileName: string): string {
-  return fileName.replace(MARKDOWN_EXTENSION, "");
+  return fileName.replace(MARKDOWN_EXTENSION_RE, "");
 }
 
 /**

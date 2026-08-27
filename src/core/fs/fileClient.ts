@@ -22,7 +22,6 @@ import type {
 const fileContentSchema = z.object({
   path: z.string(),
   content: z.string(),
-  modifiedMs: z.number(),
 });
 const launchFilesSchema = z.array(z.string());
 // 起動テーマ。wire を信用せず enum 検証し、不正は "system" へ正規化する。
@@ -47,9 +46,11 @@ export interface FileDropEvent {
 }
 
 // data URI 検証。wire を信用せず、data: 前置の文字列であることを境界で確認する。
-const imageDataUriSchema = z.string().refine((s) => s.startsWith("data:"), {
-  message: "data URI ではありません",
-});
+// zod v4 では検証は組み込みの startsWith、メッセージ指定は `error`（`message` は
+// v3 互換の非推奨エイリアス）を使う。
+const imageDataUriSchema = z
+  .string()
+  .startsWith("data:", { error: "data URI ではありません" });
 
 /** 指定パスの Markdown を読み込む。 */
 export async function readMarkdownFile(path: string): Promise<FileContent> {
@@ -72,14 +73,24 @@ export async function readImageDataUri(
 
 /**
  * 現在の表示内容を PDF として書き出す（WebView2 の PrintToPdf を Rust 経由で起動）。
- * `path` は保存先の絶対パス、`headerTitle` は各ページのヘッダーに出す文字列。
+ * `path` は保存先の絶対パス、`headerTitle` は各ページのヘッダーに出す文字列、
+ * `marginsMm` は用紙余白（画面の `@page` と同じ値をフロントの単一定数から渡す）。
  * 完了まで解決しない。失敗時は例外を伝播し、呼び出し側が reportError する。
  */
 export async function printToPdf(
   path: string,
   headerTitle: string,
+  marginsMm: { readonly vertical: number; readonly horizontal: number },
 ): Promise<void> {
-  await invoke("print_to_pdf", { path, headerTitle });
+  await invoke("print_to_pdf", { path, headerTitle, marginsMm });
+}
+
+/**
+ * 2 回目以降の起動から転送され、まだ処理していない Markdown パスを取り出す。
+ * 取り出すと Rust 側の控えは空になる（同じパスを二重に開かない）。
+ */
+export async function takePendingOpenFiles(): Promise<string[]> {
+  return launchFilesSchema.parse(await invoke("take_pending_open_files"));
 }
 
 /**
@@ -115,42 +126,62 @@ export async function getLaunchTheme(): Promise<LaunchTheme> {
 }
 
 /**
- * 2 回目以降の起動（single-instance）で転送された Markdown パスを購読する。
- * Rust 側が起動引数から抽出して emit する。戻り値は購読解除関数。
+ * イベントを購読し、ペイロードを Zod で検証してからハンドラへ渡す。
+ *
+ * 検証失敗は IPC 契約の破壊（Rust 構造体と Zod スキーマの同期漏れ）を意味し、
+ * 黙って捨てると自動再読込などが無音で全滅するため、必ず `onInvalid` へ通す
+ * （無音失敗禁止）。ハンドラは呼ばない。
  */
-export function onOpenFiles(
-  handler: (paths: string[]) => void,
+function listenValidated<T>(
+  event: string,
+  schema: z.ZodType<T>,
+  handler: (value: T) => void,
+  onInvalid: (error: unknown) => void,
 ): Promise<UnlistenFn> {
-  return listen("open-files", (event) => {
-    const parsed = launchFilesSchema.safeParse(event.payload);
+  return listen(event, ({ payload }) => {
+    const parsed = schema.safeParse(payload);
     if (parsed.success) {
       handler(parsed.data);
+      return;
     }
+    onInvalid(
+      new Error(
+        `${event} のペイロードが不正です: ${parsed.error.issues
+          .map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`)
+          .join(", ")}`,
+      ),
+    );
+  });
+}
+
+/**
+ * 2 回目以降の起動（single-instance）で転送があったことを購読する。
+ *
+ * イベントは「取りに来い」の合図のみで、パスは載せない。実体は Rust 側の控えに
+ * 積まれており、ハンドラが [`takePendingOpenFiles`] で回収する。こうすると購読が
+ * 確立する前に届いた転送も取りこぼさず、かつ二重に開くこともない。
+ * 戻り値は購読解除関数。
+ */
+export function onOpenFilesPending(handler: () => void): Promise<UnlistenFn> {
+  return listen("open-files-pending", () => {
+    handler();
   });
 }
 
 /** file-changed を購読する。戻り値は購読解除関数。 */
 export function onFileChanged(
   handler: (event: FileChangedEvent) => void,
+  onInvalid: (error: unknown) => void,
 ): Promise<UnlistenFn> {
-  return listen("file-changed", (event) => {
-    const parsed = fileChangedSchema.safeParse(event.payload);
-    if (parsed.success) {
-      handler(parsed.data);
-    }
-  });
+  return listenValidated("file-changed", fileChangedSchema, handler, onInvalid);
 }
 
 /** watch-error を購読する。戻り値は購読解除関数。 */
 export function onWatchError(
   handler: (event: WatchErrorEvent) => void,
+  onInvalid: (error: unknown) => void,
 ): Promise<UnlistenFn> {
-  return listen("watch-error", (event) => {
-    const parsed = watchErrorSchema.safeParse(event.payload);
-    if (parsed.success) {
-      handler(parsed.data);
-    }
-  });
+  return listenValidated("watch-error", watchErrorSchema, handler, onInvalid);
 }
 
 /**
@@ -163,12 +194,20 @@ export function onWatchError(
  */
 export function onFileDrop(
   handler: (event: FileDropEvent) => void,
+  onInvalid: (error: unknown) => void,
 ): Promise<UnlistenFn> {
   return getCurrentWebview().onDragDropEvent((event) => {
     const { type } = event.payload;
     if (type === "drop") {
       const parsed = dragDropPayloadSchema.safeParse(event.payload);
-      handler({ kind: "drop", paths: parsed.success ? parsed.data.paths : [] });
+      if (!parsed.success) {
+        // パスを取り出せないドロップは「何も起きない」ため無音にしない。
+        onInvalid(
+          new Error("ドロップされたファイルのパスを取得できませんでした"),
+        );
+        return;
+      }
+      handler({ kind: "drop", paths: parsed.data.paths });
       return;
     }
     if (type === "enter" || type === "over") {

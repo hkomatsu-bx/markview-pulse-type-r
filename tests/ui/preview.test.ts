@@ -13,7 +13,6 @@ function makeTab(overrides: Partial<Tab>): Tab {
     source: "",
     previousSource: "",
     viewMode: "preview",
-    isWatching: false,
     ...overrides,
   };
 }

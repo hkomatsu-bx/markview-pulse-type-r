@@ -1,9 +1,11 @@
 // 画像 src の分類（純粋・DOM/IPC 非依存）。
 //
 // プレビューの <img> src を「ローカル画像（data URI 埋め込み対象）」か
-// 「非ローカル（remote / data / 既に解決済み。素通し）」かに分類する。
+// 「非ローカル（remote / data / 既に解決済み。差し替えない）」かに分類する。
 // WebView は相対 URL を配信元基準で解決してしまい、ローカル画像を表示できない
 // ため、ローカル判定されたものだけ Rust で読んで data URI へ差し替える。
+// 非ローカルのうち remote(http/https) は CSP（img-src 'self' data:）が遮断するため
+// 表示されない（プライバシー方針。imageLoader.ts の冒頭を参照）。
 
 /** 先頭が URL スキーム（`http:` `data:` `file:` 等）かを判定する。 */
 const HAS_URI_SCHEME = /^[a-zA-Z][a-zA-Z0-9+.-]*:/;

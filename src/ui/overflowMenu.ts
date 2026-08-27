@@ -6,6 +6,8 @@
 // メニュー内の終端操作（開く/印刷/エディタ）でメニューを畳みたい呼び出し側は
 // initOverflowMenu が返す close() を使う（本文幅の切替など調整系は開いたまま）。
 
+import { wireDismiss } from "./dismiss";
+
 export interface OverflowMenuElements {
   readonly button: HTMLElement;
   readonly menu: HTMLElement;
@@ -44,25 +46,15 @@ export function initOverflowMenu(
     setMenuOpen(els, !isMenuOpen(els));
   });
 
-  document.addEventListener("click", (event) => {
-    if (!isMenuOpen(els)) {
-      return;
-    }
-    const target = event.target;
-    if (
-      target instanceof Node &&
-      (els.menu.contains(target) || els.button.contains(target))
-    ) {
-      return;
-    }
-    setMenuOpen(els, false);
-  });
-
-  document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && isMenuOpen(els)) {
-      event.preventDefault();
-      close();
-    }
+  wireDismiss({
+    isOpen: () => isMenuOpen(els),
+    // 外側クリックではフォーカスを奪い返さない（クリック先へ移るのが自然）。
+    close: () => {
+      setMenuOpen(els, false);
+    },
+    // Escape はキーボード操作なので、トリガへフォーカスを戻す（迷子を防ぐ）。
+    closeOnEscape: close,
+    insideOf: [els.menu, els.button],
   });
 
   return { close };

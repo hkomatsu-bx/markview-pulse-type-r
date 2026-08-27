@@ -22,29 +22,47 @@ pub fn ensure_pdf_extension(path: &str) -> String {
     }
 }
 
+/// 用紙余白（ミリメートル）。値の出どころはフロント（`core/print.ts`）に一本化し、
+/// 画面の `@page` と PDF 書き出しで同じ数値を使う。
+#[derive(serde::Deserialize, Clone, Copy)]
+#[serde(rename_all = "camelCase")]
+pub struct PageMarginsMm {
+    pub vertical: f64,
+    pub horizontal: f64,
+}
+
 /// PDF を書き出す Tauri コマンド。
 ///
 /// `path` は保存先の絶対パス（フロントの保存ダイアログで取得）、`headerTitle` は
-/// 各ページのヘッダー中央に出すタイトル（通常は MD のファイル名の語幹）。
+/// 各ページのヘッダー中央に出すタイトル（通常は MD のファイル名の語幹）、
+/// `marginsMm` は用紙余白（フロントの単一定数から渡る）。
 /// 完了は WebView2 の非同期コールバックで届くため、チャネルで待ち合わせる。
 ///
 /// # Errors
 ///
-/// WebView2 の取得・設定・書き出しに失敗した場合、または Windows 以外の
-/// プラットフォームで呼ばれた場合に [`AppError::Print`] を返す。
+/// WebView2 の取得・設定・書き出しに失敗した場合、完了通知が期限内に届かない場合、
+/// または Windows 以外のプラットフォームで呼ばれた場合に [`AppError::Print`] を返す。
 #[tauri::command]
 pub async fn print_to_pdf(
     window: tauri::WebviewWindow,
     path: String,
     header_title: String,
+    margins_mm: PageMarginsMm,
 ) -> Result<(), AppError> {
-    imp::print_to_pdf(window, ensure_pdf_extension(&path), header_title).await
+    imp::print_to_pdf(
+        window,
+        ensure_pdf_extension(&path),
+        header_title,
+        margins_mm,
+    )
+    .await
 }
 
 #[cfg(windows)]
 mod imp {
-    use super::AppError;
+    use super::{AppError, PageMarginsMm};
 
+    use std::time::Duration;
     use tauri::WebviewWindow;
     use webview2_com::Microsoft::Web::WebView2::Win32::{
         ICoreWebView2_2, ICoreWebView2_7, ICoreWebView2Environment6, ICoreWebView2PrintSettings,
@@ -52,10 +70,12 @@ mod imp {
     use webview2_com::PrintToPdfCompletedHandler;
     use windows::core::{HSTRING, Interface};
 
-    /// 余白（インチ）。styles.css の `@page { margin: 16mm 14mm }` と揃える。
-    /// PrintToPdf は印刷設定側の余白を使うため、CSS 側と二重管理になるのを承知で明示する。
-    const MARGIN_VERTICAL_INCH: f64 = 16.0 / 25.4;
-    const MARGIN_HORIZONTAL_INCH: f64 = 14.0 / 25.4;
+    /// 1 インチのミリメートル数（印刷設定はインチで受け取る）。
+    const MM_PER_INCH: f64 = 25.4;
+
+    /// 完了通知の待ち上限。COM のコールバックが何らかの理由で一度も発火しない場合に
+    /// コマンドが永久に解決せず、フロントの書き出し状態が戻らなくなるのを防ぐ。
+    const COMPLETION_TIMEOUT: Duration = Duration::from_secs(120);
 
     /// COM の失敗を利用者向けエラーへ写像する。内部構造は晒さずメッセージのみ渡す。
     fn to_print_error(err: &windows::core::Error) -> AppError {
@@ -70,17 +90,20 @@ mod imp {
     unsafe fn build_settings(
         env: &ICoreWebView2Environment6,
         header_title: &str,
+        margins_mm: PageMarginsMm,
     ) -> windows::core::Result<ICoreWebView2PrintSettings> {
         let settings = unsafe { env.CreatePrintSettings() }?;
+        let vertical = margins_mm.vertical / MM_PER_INCH;
+        let horizontal = margins_mm.horizontal / MM_PER_INCH;
         unsafe {
             settings.SetShouldPrintBackgrounds(true)?;
             settings.SetShouldPrintHeaderAndFooter(true)?;
             settings.SetHeaderTitle(&HSTRING::from(header_title))?;
             settings.SetFooterUri(&HSTRING::from(""))?;
-            settings.SetMarginTop(MARGIN_VERTICAL_INCH)?;
-            settings.SetMarginBottom(MARGIN_VERTICAL_INCH)?;
-            settings.SetMarginLeft(MARGIN_HORIZONTAL_INCH)?;
-            settings.SetMarginRight(MARGIN_HORIZONTAL_INCH)?;
+            settings.SetMarginTop(vertical)?;
+            settings.SetMarginBottom(vertical)?;
+            settings.SetMarginLeft(horizontal)?;
+            settings.SetMarginRight(horizontal)?;
         }
         Ok(settings)
     }
@@ -90,12 +113,18 @@ mod imp {
         platform: &tauri::webview::PlatformWebview,
         path: &str,
         header_title: &str,
+        margins_mm: PageMarginsMm,
         tx: tauri::async_runtime::Sender<Result<(), AppError>>,
     ) -> windows::core::Result<()> {
         let core = unsafe { platform.controller().CoreWebView2() }?;
         let env = unsafe { core.cast::<ICoreWebView2_2>()?.Environment() }?;
-        let settings =
-            unsafe { build_settings(&env.cast::<ICoreWebView2Environment6>()?, header_title) }?;
+        let settings = unsafe {
+            build_settings(
+                &env.cast::<ICoreWebView2Environment6>()?,
+                header_title,
+                margins_mm,
+            )
+        }?;
 
         let handler = PrintToPdfCompletedHandler::create(Box::new(move |result, is_successful| {
             let outcome = match result {
@@ -120,6 +149,7 @@ mod imp {
         window: WebviewWindow,
         path: String,
         header_title: String,
+        margins_mm: PageMarginsMm,
     ) -> Result<(), AppError> {
         // 完了通知は WebView2 のコールバック（メインスレッド）から届く。容量 1 で足りる。
         let (tx, mut rx) = tauri::async_runtime::channel::<Result<(), AppError>>(1);
@@ -128,23 +158,31 @@ mod imp {
         // COM 呼び出しは WebView を所有するスレッドで行う必要がある。
         window
             .with_webview(move |platform| {
-                if let Err(err) = unsafe { start_print(&platform, &path, &header_title, tx) } {
+                if let Err(err) =
+                    unsafe { start_print(&platform, &path, &header_title, margins_mm, tx) }
+                {
                     let _ = error_tx.try_send(Err(to_print_error(&err)));
                 }
             })
             .map_err(|err| AppError::Print(err.to_string()))?;
 
-        rx.recv().await.unwrap_or_else(|| {
-            Err(AppError::Print(
+        match tokio::time::timeout(COMPLETION_TIMEOUT, rx.recv()).await {
+            Ok(Some(outcome)) => outcome,
+            // 送信側が全て drop された（コールバックが結果を送らず消えた）。
+            Ok(None) => Err(AppError::Print(
                 "完了通知を受け取れませんでした".to_string(),
-            ))
-        })
+            )),
+            Err(_) => Err(AppError::Print(format!(
+                "書き出しが {} 秒以内に完了しませんでした",
+                COMPLETION_TIMEOUT.as_secs()
+            ))),
+        }
     }
 }
 
 #[cfg(not(windows))]
 mod imp {
-    use super::AppError;
+    use super::{AppError, PageMarginsMm};
 
     /// Windows 以外は WebView2 が無い。Windows 専用アプリのため未対応として失敗させる
     /// （非 Windows でも `cargo test` が通るようにするためのスタブ）。
@@ -152,6 +190,7 @@ mod imp {
         _window: tauri::WebviewWindow,
         _path: String,
         _header_title: String,
+        _margins_mm: PageMarginsMm,
     ) -> Result<(), AppError> {
         Err(AppError::Print(
             "このプラットフォームでは PDF 書き出しに対応していません".to_string(),

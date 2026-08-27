@@ -64,6 +64,32 @@ describe("renderMarkdown", () => {
     expect(html).toContain("<div>x</div>");
   });
 
+  it("strips form controls so untrusted .md cannot fake an input UI (phishing guard)", () => {
+    const html = renderMarkdown(
+      '<form action="https://attacker.example">' +
+        '<input name="password" type="password">' +
+        "<textarea></textarea>" +
+        "<select><option>a</option></select>" +
+        "<button>送信</button>" +
+        "</form>",
+    );
+    for (const tag of [
+      "<form",
+      "<input",
+      "<textarea",
+      "<select",
+      "<option",
+      "<button",
+    ]) {
+      expect(html).not.toContain(tag);
+    }
+  });
+
+  it("keeps the label text of stripped form controls (content is not lost)", () => {
+    // タグは落とすが、囲まれていた本文は残す（DOMPurify の既定挙動）。
+    expect(renderMarkdown("<button>送信</button>")).toContain("送信");
+  });
+
   it("highlights fenced code blocks for a registered language", () => {
     const html = renderMarkdown("```js\nconst x = 1;\n```");
     expect(html).toContain('class="hljs');

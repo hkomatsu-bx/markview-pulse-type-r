@@ -15,7 +15,7 @@
 
 import type { DiffOp } from "../../types";
 import { diff, countTokens } from "./diffEngine";
-import { diffTable, type TableMatrix } from "./tableDiff";
+import { diffTable, maxCols, type TableMatrix } from "./tableDiff";
 import {
   estimateDiffCost,
   shouldDegradeDiff,
@@ -130,21 +130,62 @@ function applyDiff(
   const doc = root.ownerDocument;
   const { inserts, deletes, totalLen } = indexOps(ops);
 
-  const isInsideInsert = (pos: number): boolean =>
-    inserts.some((r) => pos >= r.start && pos < r.end);
+  // inserts / deletes はいずれも位置の昇順、テキストノードの走査も文書順。
+  // よってカーソルを前進させるだけで各ノードに掛かる範囲を切り出せる。
+  // ノードごとに全操作を走査すると O(ノード数 × 操作数) になり、見出しや強調の
+  // 多い長文＋大規模編集でコストガードをすり抜けたまま著しく遅くなる。
+  let insertCursor = 0;
+  let deleteCursor = 0;
+
+  const isInsideInsert = (pos: number, from: number): boolean => {
+    for (let i = from; i < inserts.length; i++) {
+      const r = inserts[i];
+      if (!r || r.start > pos) break;
+      if (pos >= r.start && pos < r.end) return true;
+    }
+    return false;
+  };
 
   let nodeStart = 0;
   for (const node of collectTextNodes(root, excluded)) {
     const data = node.data;
     const nodeEnd = nodeStart + data.length;
 
+    // 終端がこのノードの手前で確定した挿入区間は以後不要（カーソルを進める）。
+    while (insertCursor < inserts.length) {
+      const r = inserts[insertCursor];
+      if (r && r.end <= nodeStart) {
+        insertCursor++;
+      } else {
+        break;
+      }
+    }
+    // このノードより前の削除点も同様に読み飛ばす。
+    while (deleteCursor < deletes.length) {
+      const d = deletes[deleteCursor];
+      if (d && d.pos < nodeStart) {
+        deleteCursor++;
+      } else {
+        break;
+      }
+    }
+
     // この区間 [nodeStart, nodeEnd) に掛かる削除点（終端 nodeEnd は次ノード or 末尾扱い）。
-    const localDeletes = deletes.filter(
-      (d) => d.pos >= nodeStart && d.pos < nodeEnd,
-    );
-    const hasInsertOverlap = inserts.some(
-      (r) => r.start < nodeEnd && r.end > nodeStart,
-    );
+    const localDeletes: DeletePoint[] = [];
+    for (let i = deleteCursor; i < deletes.length; i++) {
+      const d = deletes[i];
+      if (!d || d.pos >= nodeEnd) break;
+      localDeletes.push(d);
+    }
+    let hasInsertOverlap = false;
+    for (let i = insertCursor; i < inserts.length; i++) {
+      const r = inserts[i];
+      if (!r || r.start >= nodeEnd) break;
+      if (r.end > nodeStart) {
+        hasInsertOverlap = true;
+        break;
+      }
+    }
     if (localDeletes.length === 0 && !hasInsertOverlap) {
       nodeStart = nodeEnd; // 触れない（参照を維持し再描画コストも抑える）。
       continue;
@@ -152,7 +193,9 @@ function applyDiff(
 
     // kind が変わる境界（挿入区間の端）と削除点で区切る。
     const bounds = new Set<number>([nodeStart, nodeEnd]);
-    for (const r of inserts) {
+    for (let i = insertCursor; i < inserts.length; i++) {
+      const r = inserts[i];
+      if (!r || r.start >= nodeEnd) break;
       if (r.start > nodeStart && r.start < nodeEnd) bounds.add(r.start);
       if (r.end > nodeStart && r.end < nodeEnd) bounds.add(r.end);
     }
@@ -172,7 +215,7 @@ function applyDiff(
       const segText = data.slice(p - nodeStart, next - nodeStart);
       if (segText.length === 0) continue;
       children.push(
-        isInsideInsert(p)
+        isInsideInsert(p, insertCursor)
           ? makeSpan(doc, ADDED_CLASS, segText)
           : doc.createTextNode(segText),
       );
@@ -195,18 +238,36 @@ function tableToMatrix(table: HTMLTableElement): TableMatrix {
   );
 }
 
-/** 削除行を表す幻の <tr>（赤・取消線）を生成する。表示専用のため aria-hidden を付与。 */
+/**
+ * 削除行を表す幻の <tr>（赤・取消線）を生成する。表示専用のため aria-hidden を付与。
+ *
+ * セルの中身は prev 側の実 DOM（`sourceRow`）から複製して赤の span で包む。
+ * テキスト行列（prevRow）へ潰すとリンク・強調・コードといった書式が失われ、
+ * 追加行（子ノードを移設して書式を保つ）と忠実度が非対称になるため。
+ * prev 側の行を取れない場合のみテキストへ退化する。
+ */
 function buildPhantomRow(
   doc: Document,
   prevRow: readonly string[],
   colCount: number,
+  sourceRow?: HTMLTableRowElement,
 ): HTMLTableRowElement {
   const tr = doc.createElement("tr");
   tr.className = REMOVED_ROW_CLASS;
   tr.setAttribute("aria-hidden", "true");
   for (let c = 0; c < colCount; c++) {
     const td = doc.createElement("td");
-    td.appendChild(makeSpan(doc, REMOVED_CLASS, prevRow[c] ?? ""));
+    const span = doc.createElement("span");
+    span.className = REMOVED_CLASS;
+    const sourceCell = sourceRow?.cells[c];
+    if (sourceCell) {
+      for (const child of Array.from(sourceCell.childNodes)) {
+        span.appendChild(child.cloneNode(true));
+      }
+    } else {
+      span.textContent = prevRow[c] ?? "";
+    }
+    td.appendChild(span);
     tr.appendChild(td);
   }
   return tr;
@@ -229,7 +290,8 @@ function applyTableDiff(
 
   const doc = nextTable.ownerDocument;
   const nextRows = Array.from(nextTable.rows);
-  const colCount = nextM.reduce((acc, row) => Math.max(acc, row.length), 0);
+  const prevRows = Array.from(prevTable.rows);
+  const colCount = maxCols(nextM);
 
   // 1. 変更セルへ語差分を重ねる（セル内スコープで applyDiff を再利用）。
   for (const cell of result.cells) {
@@ -239,14 +301,16 @@ function applyTableDiff(
     }
   }
 
-  // 2. 追加行: 各セル内容を緑で包む。
+  // 2. 追加行: 各セルの中身を緑の span で包む。テキストへ潰さず既存の子ノードを
+  //    そのまま移設し、セル内のリンク・強調・コードといった書式を保つ。
   for (const r of result.insertedRows) {
     const rowEl = nextRows[r];
     if (!rowEl) continue;
     for (const cellEl of Array.from(rowEl.cells)) {
-      cellEl.replaceChildren(
-        makeSpan(doc, ADDED_CLASS, cellEl.textContent ?? ""),
-      );
+      const wrapper = doc.createElement("span");
+      wrapper.className = ADDED_CLASS;
+      wrapper.append(...Array.from(cellEl.childNodes));
+      cellEl.replaceChildren(wrapper);
     }
   }
 
@@ -266,7 +330,14 @@ function applyTableDiff(
   };
   for (const al of result.rows) {
     if (al.kind === "delete" && al.prevRow !== null) {
-      pending.push(buildPhantomRow(doc, prevM[al.prevRow] ?? [], colCount));
+      pending.push(
+        buildPhantomRow(
+          doc,
+          prevM[al.prevRow] ?? [],
+          colCount,
+          prevRows[al.prevRow],
+        ),
+      );
     } else if (al.nextRow !== null) {
       flushBefore(nextRows[al.nextRow] ?? null);
     }

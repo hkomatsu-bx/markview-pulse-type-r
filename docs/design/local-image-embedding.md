@@ -9,9 +9,13 @@
 Markdown が相対パスでローカル画像を参照する（例 `![](images/diagram.png)`）と、プレビューに表示されない。原因は 2 つ。
 
 1. **相対 URL の解決先**: WebView は `<img src="images/diagram.png">` をアプリ配信元（`tauri://` / `http://tauri.localhost`）基準で解決するため、`.md` の置き場所ではなく存在しない URL を引く。
-2. **ローカルファイルは不許可**: CSP は `img-src 'self' data: https:` で `file:` / `asset:` を許可せず、`tauri.conf.json` に asset protocol 設定もない。
+2. **ローカルファイルは不許可**: CSP は `img-src 'self' data:` で `file:` / `asset:` を許可せず、`tauri.conf.json` に asset protocol 設定もない。
 
-`https:` 画像と `data:` 埋め込みは現状でも表示可能。問題はローカル画像（相対・絶対）に限る。
+`data:` 埋め込みは現状でも表示可能。問題はローカル画像（相対・絶対）に限る。
+
+`https:` 画像は CSP で遮断する（表示しない）。未信頼の `.md` が外部へ画像を要求するだけで、
+閲覧の事実・時刻・IP アドレスを第三者へ送出するトラッキングビーコンとして機能するため。
+遮断された画像は `alt` が残り、利用者から見て不可視の失敗にはならない。
 
 ## 決定
 

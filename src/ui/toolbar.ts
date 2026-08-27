@@ -12,6 +12,7 @@ import {
   type ContentWidth,
 } from "../core/view/contentWidth";
 import { zoomPercentLabel, type ZoomPercent } from "../core/view/zoomLevel";
+import { setAllDisabled } from "./disabled";
 import type { ViewMode } from "../core/view/viewMode";
 import type { LaunchTheme } from "../types";
 
@@ -44,17 +45,31 @@ export interface ToolbarHandlers {
   readonly onSelectTheme: (mode: LaunchTheme) => void;
 }
 
-/** 表示モードの選択状態を 2 ボタンへ反映する。 */
-export function setViewModeButtons(els: ToolbarElements, mode: ViewMode): void {
-  const map: readonly (readonly [HTMLElement, ViewMode])[] = [
-    [els.modePreview, "preview"],
-    [els.modeSource, "source"],
-  ];
-  for (const [el, m] of map) {
-    const active = m === mode;
+/**
+ * 排他選択（ラジオ相当）の選択状態を、値と要素の対応表へ反映する。
+ * 表示モードとテーマ選択が同じ形をしているため共通化する（aria の付け方を
+ * 変えるときに片方だけ直す食い違いを防ぐ）。
+ */
+function setExclusiveSelection<T>(
+  pairs: readonly (readonly [HTMLElement, T])[],
+  selected: T,
+): void {
+  for (const [el, value] of pairs) {
+    const active = value === selected;
     el.classList.toggle("is-active", active);
     el.setAttribute("aria-selected", String(active));
   }
+}
+
+/** 表示モードの選択状態を 2 ボタンへ反映する。 */
+export function setViewModeButtons(els: ToolbarElements, mode: ViewMode): void {
+  setExclusiveSelection(
+    [
+      [els.modePreview, "preview"],
+      [els.modeSource, "source"],
+    ],
+    mode,
+  );
 }
 
 /**
@@ -81,10 +96,7 @@ export function setOpenInEditorEnabled(
   els: ToolbarElements,
   enabled: boolean,
 ): void {
-  for (const el of [els.openInEditor, els.savePdf]) {
-    el.toggleAttribute("disabled", !enabled);
-    el.setAttribute("aria-disabled", String(!enabled));
-  }
+  setAllDisabled([els.openInEditor, els.savePdf], !enabled);
 }
 
 /** コンテンツ幅切替ボタンのラベルを現在値へ反映する。 */
@@ -122,16 +134,14 @@ export function setZoomLabel(els: ToolbarElements, percent: ZoomPercent): void {
 
 /** テーマ選択（ライト/ダーク/システム）の選択状態を 3 ボタンへ反映する。 */
 export function setThemeButtons(els: ToolbarElements, mode: LaunchTheme): void {
-  const map: readonly (readonly [HTMLElement, LaunchTheme])[] = [
-    [els.themeLight, "light"],
-    [els.themeDark, "dark"],
-    [els.themeSystem, "system"],
-  ];
-  for (const [el, m] of map) {
-    const active = m === mode;
-    el.classList.toggle("is-active", active);
-    el.setAttribute("aria-selected", String(active));
-  }
+  setExclusiveSelection(
+    [
+      [els.themeLight, "light"],
+      [els.themeDark, "dark"],
+      [els.themeSystem, "system"],
+    ],
+    mode,
+  );
 }
 
 /** ツールバーのクリックを配線する。 */
