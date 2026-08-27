@@ -1,6 +1,8 @@
 // 本文（プレビュー）の最大表示幅プリセットと順送りロジック。
 // 値は CSS 変数 `--content-max-width` へ反映される。
 
+import { cyclePreset } from "./preset";
+
 export type ContentWidth = "narrow" | "normal" | "wide" | "full";
 
 /** 既定の表示幅（既存デザインの 860px に対応）。 */
@@ -9,10 +11,7 @@ export const DEFAULT_CONTENT_WIDTH: ContentWidth = "normal";
 const ORDER: readonly ContentWidth[] = ["narrow", "normal", "wide", "full"];
 
 export function cycleContentWidth(current: ContentWidth): ContentWidth {
-  const index = ORDER.indexOf(current);
-  // 未知値が来ても既定へ寄せる（防御的）。
-  const nextIndex = index === -1 ? 0 : (index + 1) % ORDER.length;
-  return ORDER[nextIndex] ?? DEFAULT_CONTENT_WIDTH;
+  return cyclePreset(ORDER, current, DEFAULT_CONTENT_WIDTH);
 }
 
 /** full は制限なし（`none`）を返す。 */

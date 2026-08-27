@@ -3,11 +3,16 @@
 // アクティブタブのソースから文字数・行数・エンコーディングを算出する純関数。
 // DOM / Tauri / I/O に依存しない（単体テスト可能）。
 
+import { countLines } from "../view/sourceLines";
+
 /** ステータスバーに表示するドキュメント統計。 */
 export interface DocumentStats {
-  /** 文字数（コードポイント単位。CJK・絵文字を 1 文字として計上）。 */
+  /** 文字数（書記素クラスタ単位。CJK・絵文字を 1 文字として計上）。 */
   readonly charCount: number;
-  /** 行数（空文字列は 0、非空は改行数 + 1）。 */
+  /**
+   * 論理行数。数え方は core/view/sourceLines の定義に従う（末尾改行は行を
+   * 増やさない）ため、原文ビューに描かれる最終行の行番号と一致する。
+   */
   readonly lineCount: number;
   /** 文字エンコーディング表示。Rust が UTF-8 で読込むため固定。 */
   readonly encoding: string;
@@ -28,7 +33,12 @@ export function computeDocumentStats(source: string): DocumentStats {
   if (source.length === 0) {
     return { charCount: 0, lineCount: 0, encoding: "UTF-8" };
   }
-  const charCount = [...graphemeSegmenter.segment(source)].length;
-  const lineCount = source.split("\n").length;
-  return { charCount, lineCount, encoding: "UTF-8" };
+  // 走査するだけで数え、セグメント／行の配列を作らない。MB 級の文書では
+  // 配列化のぶんだけ一時確保が跳ね上がり、再描画のたびに GC を誘発するため。
+  let charCount = 0;
+  const segments = graphemeSegmenter.segment(source)[Symbol.iterator]();
+  while (!segments.next().done) {
+    charCount++;
+  }
+  return { charCount, lineCount: countLines(source), encoding: "UTF-8" };
 }

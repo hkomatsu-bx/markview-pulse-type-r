@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { renderPreview } from "../../src/ui/preview";
+import { renderPreview, clearPreviewMemo } from "../../src/ui/preview";
 import type { Tab } from "../../src/types";
 
 // プレビューは Tab を描画する。原文モードは textContent、プレビューモードは markdown 描画。
@@ -13,7 +13,6 @@ function makeTab(overrides: Partial<Tab>): Tab {
     source: "",
     previousSource: "",
     viewMode: "preview",
-    isWatching: false,
     ...overrides,
   };
 }
@@ -23,6 +22,8 @@ describe("renderPreview", () => {
 
   beforeEach(() => {
     container = document.createElement("article");
+    // 描画メモと Markdown キャッシュはモジュール状態のため、テスト間で持ち越さない。
+    clearPreviewMemo();
   });
 
   it("renders markdown to HTML in preview mode", () => {
@@ -124,6 +125,41 @@ describe("renderPreview", () => {
     expect(pre?.textContent).not.toMatch(/\d/);
     expect(pre?.textContent).toContain("alpha");
     expect(pre?.textContent).toContain("beta");
+  });
+
+  it("re-renders correctly after the markdown cache has been evicted", () => {
+    // Arrange: 直近 2 件だけを保持するキャッシュを 3 種のソースで一巡させる。
+    const sources = ["# alpha", "# bravo", "# charlie"];
+    for (const source of sources) {
+      renderPreview(container, makeTab({ source }), false);
+    }
+
+    // Act: 追い出された最初のソースをもう一度描画する。
+    renderPreview(container, makeTab({ source: sources[0] }), false);
+
+    // Assert
+    expect(container.querySelector("h1")?.textContent).toBe("alpha");
+  });
+
+  it("keeps diff correct when the previous next-source becomes the new prev", () => {
+    // Arrange: 外部編集の連鎖（A→B のあと B→C）。B はキャッシュ経由で prev に回る。
+    renderPreview(
+      container,
+      makeTab({ previousSource: "alpha word", source: "bravo word" }),
+      true,
+    );
+
+    // Act
+    renderPreview(
+      container,
+      makeTab({ previousSource: "bravo word", source: "charlie word" }),
+      true,
+    );
+
+    // Assert: 差分は B↔C で取られ、A の痕跡は残らない。
+    expect(container.querySelector(".diff-added")?.textContent).toBe("charlie");
+    expect(container.querySelector(".diff-removed")?.textContent).toBe("bravo");
+    expect(container.textContent).not.toContain("alpha");
   });
 
   it("renders an empty <pre> for empty source (FR-18)", () => {

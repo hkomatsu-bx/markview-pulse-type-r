@@ -6,6 +6,7 @@
 // ここでも必ず行う（二重防御。信頼できない .md を開く前提）。
 
 import { load } from "js-yaml";
+import { escapeHtml } from "markdown-it/lib/common/utils.mjs";
 
 /** フロントマター抽出結果。data はパース値（マッピング以外や失敗時は null 相当）。 */
 export interface FrontMatterResult {
@@ -57,18 +58,9 @@ export function extractFrontMatter(source: string): FrontMatterResult {
   }
 }
 
-const HTML_ESCAPES: Readonly<Record<string, string>> = {
-  "&": "&amp;",
-  "<": "&lt;",
-  ">": "&gt;",
-  '"': "&quot;",
-  "'": "&#39;",
-};
-
-/** HTML 特殊文字をエスケープする。 */
-function escapeHtml(value: string): string {
-  return value.replace(/[&<>"']/g, (ch) => HTML_ESCAPES[ch] ?? ch);
-}
+// エスケープは markdown-it の実装を使う（この描画結果は最終的に markdown-it の
+// 出力と連結され、同じ DOMPurify を通る）。手書きの変換表を別に持つと、
+// エスケープ規則が 2 系統に分かれて監査・修正の漏れどころになる。
 
 /** フロントマター値を表示用文字列へ変換する（非スカラーは JSON 文字列化）。 */
 function formatValue(value: unknown): string {

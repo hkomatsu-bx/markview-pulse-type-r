@@ -1,6 +1,6 @@
 // ツールバー。
 //
-// 「ファイルを開く」「プレビュー⇄原文」モード切替・「差分強調」トグル・「印刷 / PDF」を配線する。
+// 「ファイルを開く」「プレビュー⇄原文」モード切替・「差分強調」トグル・「印刷」「PDF で保存」を配線する。
 // 状態は持たず、操作はハンドラへ委譲し、表示反映（setViewModeButtons / setDiffToggle）は
 // 呼び出し側が状態に応じて行う。
 //
@@ -12,6 +12,7 @@ import {
   type ContentWidth,
 } from "../core/view/contentWidth";
 import { zoomPercentLabel, type ZoomPercent } from "../core/view/zoomLevel";
+import { setAllDisabled } from "./disabled";
 import type { ViewMode } from "../core/view/viewMode";
 import type { LaunchTheme } from "../types";
 
@@ -25,6 +26,7 @@ export interface ToolbarElements {
   readonly contentWidth: HTMLElement;
   readonly zoom: HTMLElement;
   readonly print: HTMLElement;
+  readonly savePdf: HTMLElement;
   readonly openInEditor: HTMLElement;
   readonly themeLight: HTMLElement;
   readonly themeDark: HTMLElement;
@@ -38,21 +40,36 @@ export interface ToolbarHandlers {
   readonly onCycleWidth: () => void;
   readonly onCycleZoom: () => void;
   readonly onPrint: () => void;
+  readonly onSavePdf: () => void;
   readonly onOpenInEditor: () => void;
   readonly onSelectTheme: (mode: LaunchTheme) => void;
 }
 
-/** 表示モードの選択状態を 2 ボタンへ反映する。 */
-export function setViewModeButtons(els: ToolbarElements, mode: ViewMode): void {
-  const map: readonly (readonly [HTMLElement, ViewMode])[] = [
-    [els.modePreview, "preview"],
-    [els.modeSource, "source"],
-  ];
-  for (const [el, m] of map) {
-    const active = m === mode;
+/**
+ * 排他選択（ラジオ相当）の選択状態を、値と要素の対応表へ反映する。
+ * 表示モードとテーマ選択が同じ形をしているため共通化する（aria の付け方を
+ * 変えるときに片方だけ直す食い違いを防ぐ）。
+ */
+function setExclusiveSelection<T>(
+  pairs: readonly (readonly [HTMLElement, T])[],
+  selected: T,
+): void {
+  for (const [el, value] of pairs) {
+    const active = value === selected;
     el.classList.toggle("is-active", active);
     el.setAttribute("aria-selected", String(active));
   }
+}
+
+/** 表示モードの選択状態を 2 ボタンへ反映する。 */
+export function setViewModeButtons(els: ToolbarElements, mode: ViewMode): void {
+  setExclusiveSelection(
+    [
+      [els.modePreview, "preview"],
+      [els.modeSource, "source"],
+    ],
+    mode,
+  );
 }
 
 /**
@@ -72,15 +89,14 @@ export function setDiffToggle(
 }
 
 /**
- * 「エディタで開く」の操作可否を反映する。
+ * 「エディタで開く」「PDF で保存」の操作可否を反映する。
  * @param enabled アクティブタブがあるか（true で操作可能）。
  */
 export function setOpenInEditorEnabled(
   els: ToolbarElements,
   enabled: boolean,
 ): void {
-  els.openInEditor.toggleAttribute("disabled", !enabled);
-  els.openInEditor.setAttribute("aria-disabled", String(!enabled));
+  setAllDisabled([els.openInEditor, els.savePdf], !enabled);
 }
 
 /** コンテンツ幅切替ボタンのラベルを現在値へ反映する。 */
@@ -118,16 +134,14 @@ export function setZoomLabel(els: ToolbarElements, percent: ZoomPercent): void {
 
 /** テーマ選択（ライト/ダーク/システム）の選択状態を 3 ボタンへ反映する。 */
 export function setThemeButtons(els: ToolbarElements, mode: LaunchTheme): void {
-  const map: readonly (readonly [HTMLElement, LaunchTheme])[] = [
-    [els.themeLight, "light"],
-    [els.themeDark, "dark"],
-    [els.themeSystem, "system"],
-  ];
-  for (const [el, m] of map) {
-    const active = m === mode;
-    el.classList.toggle("is-active", active);
-    el.setAttribute("aria-selected", String(active));
-  }
+  setExclusiveSelection(
+    [
+      [els.themeLight, "light"],
+      [els.themeDark, "dark"],
+      [els.themeSystem, "system"],
+    ],
+    mode,
+  );
 }
 
 /** ツールバーのクリックを配線する。 */
@@ -148,6 +162,7 @@ export function initToolbar(
   els.contentWidth.addEventListener("click", handlers.onCycleWidth);
   els.zoom.addEventListener("click", handlers.onCycleZoom);
   els.print.addEventListener("click", handlers.onPrint);
+  els.savePdf.addEventListener("click", handlers.onSavePdf);
   els.openInEditor.addEventListener("click", handlers.onOpenInEditor);
   els.themeLight.addEventListener("click", () => {
     handlers.onSelectTheme("light");

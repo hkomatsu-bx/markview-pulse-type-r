@@ -1,7 +1,7 @@
 /* Markview Pulse Type R - スタイル
  *
- * テーマ: [data-theme] 明示指定が無ければ prefers-color-scheme に追従（FR-08）。
- * 差分: 本文中に span を重ねてインライン強調（FR-03）。
+ * テーマ: [data-theme] 明示指定が無ければ prefers-color-scheme に追従。
+ * 差分: 本文中に span を重ねてインライン強調。
  * 印刷: @media print でツールバー/タブを隠し本文だけを出す。
  */
 
@@ -17,7 +17,7 @@
   /* 差分強調トグルのアクセント。ブランドレッドより若干ピンク寄りにして区別する。 */
   --diff-accent: #e5336e;
   --radius: 8px;
-  /* 本文最大幅（FR-12）。main.ts が #preview にプリセット値を反映する。 */
+  /* 本文最大幅。main.ts が #preview にプリセット値を反映する。 */
   --content-max-width: 860px;
   /* 本文（プレビュー/原文）の基準フォントサイズ。UI クロム（14px）より大きめに取り可読性を上げる。 */
   --content-font-size: 16px;
@@ -57,37 +57,42 @@
   --hl-operator: #57606a;
 }
 
-/* ダーク（明示 dark） */
-:root[data-theme="dark"] {
-  --bg: #202020;
-  --bg-elev: #2b2b2b;
-  --fg: #e8e8e8;
-  --fg-muted: #a0a0a0;
-  --border: #3a3a3a;
-  --code-bg: #2b2b2b;
-  --quote-bar: #4a4a4a;
-  --diff-add-bg: #18341f;
-  --diff-add-fg: #6ee7a0;
-  --diff-del-bg: #3a1d1d;
-  --diff-del-fg: #f0a0a0;
-  /* コードハイライト（highlight.js）トークン色。暗部: 彩度を抑えた多色系。 */
-  --hl-comment: #8b949e;
-  --hl-keyword: #ff7b72;
-  --hl-string: #a5d6ff;
-  --hl-number: #ffab70;
-  --hl-function: #d2a8ff;
-  --hl-title: #d2a8ff;
-  --hl-type: #56d4dd;
-  --hl-built_in: #79c0ff;
-  --hl-attr: #79c0ff;
-  --hl-variable: #ffa657;
-  --hl-meta: #8b949e;
-  --hl-tag: #7ee787;
-  --hl-operator: #8b949e;
+/* ダーク（明示 dark）
+ * 印刷時はダークのパレットを当てない（@media screen）。ライトのパレットは
+ * bare :root にあるため、印刷では自動的にライトへ戻る。背景を印刷する
+ * PDF 書き出し（PrintToPdf）でコード背景が黒塗りになるのを防ぐ。 */
+@media screen {
+  :root[data-theme="dark"] {
+    --bg: #202020;
+    --bg-elev: #2b2b2b;
+    --fg: #e8e8e8;
+    --fg-muted: #a0a0a0;
+    --border: #3a3a3a;
+    --code-bg: #2b2b2b;
+    --quote-bar: #4a4a4a;
+    --diff-add-bg: #18341f;
+    --diff-add-fg: #6ee7a0;
+    --diff-del-bg: #3a1d1d;
+    --diff-del-fg: #f0a0a0;
+    /* コードハイライト（highlight.js）トークン色。暗部: 彩度を抑えた多色系。 */
+    --hl-comment: #8b949e;
+    --hl-keyword: #ff7b72;
+    --hl-string: #a5d6ff;
+    --hl-number: #ffab70;
+    --hl-function: #d2a8ff;
+    --hl-title: #d2a8ff;
+    --hl-type: #56d4dd;
+    --hl-built_in: #79c0ff;
+    --hl-attr: #79c0ff;
+    --hl-variable: #ffa657;
+    --hl-meta: #8b949e;
+    --hl-tag: #7ee787;
+    --hl-operator: #8b949e;
+  }
 }
 
 /* OS 追従（data-theme 未指定でダーク環境のとき） */
-@media (prefers-color-scheme: dark) {
+@media screen and (prefers-color-scheme: dark) {
   :root:not([data-theme]) {
     --bg: #202020;
     --bg-elev: #2b2b2b;
@@ -319,7 +324,7 @@ body {
   border-color: var(--brand-hover);
 }
 
-/* 差分強調トグル（FR-03）: ON で押下状態、原文モードでは disabled で淡色化。
+/* 差分強調トグル: ON で押下状態、原文モードでは disabled で淡色化。
    アクセントはブランドレッドより若干ピンク寄り（--diff-accent）。 */
 .btn-toggle.is-active {
   background: color-mix(in srgb, var(--diff-accent) 12%, transparent);
@@ -337,13 +342,13 @@ body {
   background: transparent;
 }
 
-/* 汎用の無効ボタン（例: エディタで開く＝タブ未選択時・FR-19）。 */
+/* 汎用の無効ボタン（例: エディタで開く＝タブ未選択時）。 */
 .btn[disabled] {
   opacity: 0.4;
   cursor: not-allowed;
 }
 
-/* ---- タブバー（FR-04） ---- */
+/* ---- タブバー ---- */
 .tabbar {
   display: flex;
   align-items: stretch;
@@ -414,7 +419,7 @@ body {
   padding-top: 15vh;
 }
 
-/* ---- ウェルカム画面（FR-06） ---- */
+/* ---- ウェルカム画面 ---- */
 .welcome {
   display: flex;
   flex-direction: column;
@@ -450,7 +455,7 @@ body {
   font-family: var(--font-ui);
 }
 
-/* ロゴ波形: 薄い全体トレース＋明るい走査パルス。reduced-motion で静止（NFR-06）。 */
+/* ロゴ波形: 薄い全体トレース＋明るい走査パルス。reduced-motion で静止。 */
 .logo-wave-base,
 .logo-wave-pulse {
   fill: none;
@@ -516,7 +521,7 @@ body {
   opacity: 0.8;
 }
 
-/* ---- 原文（ソース）表示（FR-17 / FR-18 行番号） ---- */
+/* ---- 原文（ソース）表示（行番号） ---- */
 .source-view {
   max-width: var(--content-max-width, 860px);
   margin: 0 auto;
@@ -529,12 +534,12 @@ body {
   background: var(--code-bg);
   padding: 16px 18px;
   border-radius: var(--radius);
-  /* 行番号カウンタの起点（FR-18）。 */
+  /* 行番号カウンタの起点。 */
   counter-reset: srcline;
 }
 
 /*
- * 論理行（FR-18）。各行を block にして折り返しを許す。
+ * 論理行。各行を block にして折り返しを許す。
  * 行番号は ::before の生成内容で描画するため、コピー対象に含まれず
  * （要件「コピーに行番号を含めない」）、折返し継続行には番号が出ない。
  */
@@ -564,7 +569,7 @@ body {
   display: none;
 }
 
-/* ---- ステータスバー（FR-07） ----
+/* ---- ステータスバー ----
    左にファイルパス、右に統計。パスは伸縮して余白を埋め、長い場合は省略する。 */
 .statusbar {
   display: flex;
@@ -610,21 +615,21 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
-/* 縮退通知（NFR-01）: 差分強調を省略した旨を非モーダルで一時表示 */
+/* 縮退通知: 差分強調を省略した旨を非モーダルで一時表示 */
 .statusbar-notice {
   margin-left: auto;
   padding-left: 12px;
   color: var(--brand);
 }
 
-/* ---- ドラッグ&ドロップ歓迎表示（FR-09） ---- */
+/* ---- ドラッグ&ドロップ歓迎表示 ---- */
 .scroll.is-drop-target {
   outline: 2px dashed var(--brand);
   outline-offset: -8px;
   background: color-mix(in srgb, var(--brand) 6%, var(--bg));
 }
 
-/* ---- 本文幅切替ボタンのラベル（FR-12） ---- */
+/* ---- 本文幅切替ボタンのラベル ---- */
 .btn .width-label {
   font-variant-numeric: tabular-nums;
   min-width: 2.4em;
@@ -863,7 +868,7 @@ body {
   color: var(--accent);
 }
 
-/* ---- インライン差分（FR-03）: 本文中に span を重ねる ---- */
+/* ---- インライン差分: 本文中に span を重ねる ---- */
 .diff-added {
   background: var(--diff-add-bg);
   color: var(--diff-add-fg);
@@ -877,34 +882,20 @@ body {
   border-radius: 3px;
 }
 
-/* テーブルのセル単位差分（FR-11）: 削除行は幻の行として赤系で挿入する */
+/* テーブルのセル単位差分: 削除行は幻の行として赤系で挿入する */
 .markdown-body tr.diff-removed-row td {
   background: var(--diff-del-bg);
   color: var(--diff-del-fg);
   text-decoration: line-through;
 }
 
-/* ---- 印刷 / PDF（FR-05）----
- * @page マージンボックスを1つでも定義すると、ブラウザ既定のヘッダー/フッター
- * （日付・タイトル・URL・ページ番号）は抑制される（Chromium 131+ / WebView2）。
- * ヘッダー中央のファイル名（content）は main.ts が動的注入し、ここでは体裁と
- * フッター右のページ番号のみを静的に定義する。
+/* ---- 印刷 / PDF ----
+ * 用紙余白の @page ルールは main.ts が core/print.ts の値から組み立てて注入する
+ * （@page は CSS 変数を受け付けず、ここに直書きすると PDF 書き出し側へ渡す値と
+ * 二重管理になるため）。ヘッダー / フッター（ファイル名・ページ番号）は @page の
+ * マージンボックスが Chromium 未実装で描かれないため、PDF 書き出しでは
+ * WebView2 の印刷設定（commands/print.rs）側で指定する。
  */
-@page {
-  margin: 16mm 14mm;
-
-  @top-center {
-    content: "";
-    font-size: 9pt;
-    color: #555;
-  }
-
-  @bottom-right {
-    content: counter(page) " / " counter(pages);
-    font-size: 9pt;
-    color: #555;
-  }
-}
 
 @media print {
   .toolbar,

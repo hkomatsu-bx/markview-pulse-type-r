@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   pdfTitleFromFileName,
-  buildPrintPageStyle,
+  pdfFileNameFromFileName,
 } from "../../src/core/print";
 
 // AAA パターン（Arrange-Act-Assert）。印刷補助は純関数のため DOM 不要。
@@ -34,34 +34,13 @@ describe("pdfTitleFromFileName", () => {
   });
 });
 
-describe("buildPrintPageStyle", () => {
-  it("embeds the file name into the @page @top-center content", () => {
-    expect(buildPrintPageStyle("README.md")).toBe(
-      '@page { @top-center { content: "README.md"; } }',
-    );
+describe("pdfFileNameFromFileName", () => {
+  it("replaces a markdown extension with .pdf", () => {
+    expect(pdfFileNameFromFileName("README.md")).toBe("README.pdf");
+    expect(pdfFileNameFromFileName("notes.markdown")).toBe("notes.pdf");
   });
 
-  it("escapes double quotes in the file name", () => {
-    expect(buildPrintPageStyle('a"b.md')).toBe(
-      '@page { @top-center { content: "a\\"b.md"; } }',
-    );
-  });
-
-  it("escapes backslashes in the file name", () => {
-    expect(buildPrintPageStyle("a\\b.md")).toBe(
-      '@page { @top-center { content: "a\\\\b.md"; } }',
-    );
-  });
-
-  it("normalizes control characters to spaces", () => {
-    expect(buildPrintPageStyle("a\nb\tc.md")).toBe(
-      '@page { @top-center { content: "a b c.md"; } }',
-    );
-  });
-
-  it("preserves multibyte (CJK) characters", () => {
-    expect(buildPrintPageStyle("設計書.md")).toBe(
-      '@page { @top-center { content: "設計書.md"; } }',
-    );
+  it("appends .pdf when the name has no markdown extension", () => {
+    expect(pdfFileNameFromFileName("changelog")).toBe("changelog.pdf");
   });
 });

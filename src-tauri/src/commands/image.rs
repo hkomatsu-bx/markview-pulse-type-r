@@ -13,6 +13,7 @@
 //! ロジックは純関数へ分離し、`#[tauri::command]` は薄いラッパにしてテスト可能にする。
 
 use std::fs;
+use std::io::Read;
 use std::path::{Path, PathBuf};
 
 use base64::{Engine as _, engine::general_purpose::STANDARD};
@@ -94,17 +95,33 @@ fn resolve_image_path(md_path: &Path, src: &str) -> Result<PathBuf, AppError> {
 
 /// 実パスの画像を上限チェックの上で読み、`data:{mime};base64,...` を組み立てる。
 /// サイズ上限超過は [`AppError::InvalidImage`]、読取失敗は [`AppError`]（from_io）。
+///
+/// 上限は「事前 stat」ではなく実読取そのものを `take(max + 1)` で頭打ちにして課す。
+/// stat と read が別オープンだと、検査を通った後に成長したファイルを丸ごと読み込んで
+/// しまい（TOCTOU）、上限の意味が無くなるため。
 fn encode_data_uri(target: &Path, mime: &str, max_bytes: u64) -> Result<String, AppError> {
-    let meta = fs::metadata(target).map_err(|e| AppError::from_io(target, &e))?;
-    if meta.len() > max_bytes {
+    let file = fs::File::open(target).map_err(|e| AppError::from_io(target, &e))?;
+    // 上限 + 1 バイトまで読み、超過を検出できるようにする。
+    let mut reader = file.take(max_bytes.saturating_add(1));
+    let mut bytes = Vec::new();
+    reader
+        .read_to_end(&mut bytes)
+        .map_err(|e| AppError::from_io(target, &e))?;
+    if bytes.len() as u64 > max_bytes {
         return Err(AppError::InvalidImage(format!(
             "画像が大きすぎます（上限 {} MiB）: {}",
             max_bytes / (1024 * 1024),
             target.display()
         )));
     }
-    let bytes = fs::read(target).map_err(|e| AppError::from_io(target, &e))?;
-    Ok(format!("data:{mime};base64,{}", STANDARD.encode(&bytes)))
+
+    // base64 は 1 バッファへ直接追記する。`format!` で組み立てると base64 文字列が
+    // もう一度まるごとコピーされ、20MiB の画像で約 27MB の無駄な確保になる。
+    let prefix = format!("data:{mime};base64,");
+    let mut uri = String::with_capacity(prefix.len() + bytes.len().div_ceil(3) * 4);
+    uri.push_str(&prefix);
+    STANDARD.encode_string(&bytes, &mut uri);
+    Ok(uri)
 }
 
 /// ローカル画像を data URI へ変換する純関数（I/O を含むがフロント・Tauri 非依存）。
@@ -131,10 +148,14 @@ pub fn read_image_as_data_uri(md_path: &Path, src: &str) -> Result<String, AppEr
 /// 引数キーはフロントから camelCase（`mdPath` / `src`）で渡り、Tauri が snake_case へ
 /// 変換する。`src` はフロント側で percent-decode 済みの参照を想定する。
 ///
+/// `(async)` 指定は必須。非 async のコマンドは WebView のイベントループを回すメイン
+/// スレッドで同期実行されるため、最大 [`MAX_IMAGE_BYTES`] の読取と base64 化がここに
+/// 載るとウィンドウ全体が無応答になる（フロントは文書内の全画像を一斉に invoke する）。
+///
 /// # Errors
 ///
 /// [`read_image_as_data_uri`] と同じ条件で [`AppError`] を返す（Display 文字列で届く）。
-#[tauri::command]
+#[tauri::command(async)]
 pub fn read_image_data_uri(md_path: String, src: String) -> Result<String, AppError> {
     read_image_as_data_uri(Path::new(&md_path), &src)
 }

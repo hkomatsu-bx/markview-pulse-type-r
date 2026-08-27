@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 
 import { computeDocumentStats } from "../../src/core/stats/documentStats";
+import { splitSourceLines } from "../../src/core/view/sourceLines";
 
 describe("computeDocumentStats（FR-07）", () => {
   it("空文字列は 0 文字・0 行・UTF-8 を返す", () => {
@@ -41,10 +42,21 @@ describe("computeDocumentStats（FR-07）", () => {
     expect(stats.lineCount).toBe(3);
   });
 
-  it("末尾改行を末尾の空行として数える", () => {
+  it("末尾改行は行終端子として扱い、行を増やさない", () => {
+    // 原文ビューの行番号（splitSourceLines）と同じ定義。ここが食い違うと
+    // 「行数 2」なのに行番号は 1 までしか出ない、という矛盾が同じ画面に出る。
     const stats = computeDocumentStats("a\n");
 
-    expect(stats.lineCount).toBe(2);
+    expect(stats.lineCount).toBe(1);
+    expect(splitSourceLines("a\n")).toHaveLength(1);
+  });
+
+  it("行数は常に原文ビューの最終行番号と一致する", () => {
+    for (const source of ["a", "a\n", "a\nb", "a\nb\n", "a\n\nb\n", "\n"]) {
+      expect(computeDocumentStats(source).lineCount).toBe(
+        splitSourceLines(source).length,
+      );
+    }
   });
 
   it("エンコーディングは常に UTF-8", () => {

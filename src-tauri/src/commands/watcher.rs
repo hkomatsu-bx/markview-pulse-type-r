@@ -61,7 +61,10 @@ impl ChangeEmitter for TauriEmitter {
 }
 
 /// 指定タブのファイル監視を開始する。
-#[tauri::command]
+///
+/// `(async)` 指定は必須。内部で `fs::canonicalize` を行うため、非 async だと
+/// ネットワークドライブ上のファイルでメインスレッドが待たされる。
+#[tauri::command(async)]
 pub fn start_watch(app: AppHandle, manager: State<'_, WatchManager>, tab_id: String, path: String) {
     let emitter: Arc<dyn ChangeEmitter> = Arc::new(TauriEmitter { app });
     manager.start_watch(tab_id, PathBuf::from(path), emitter);

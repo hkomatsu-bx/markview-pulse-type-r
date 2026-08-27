@@ -82,16 +82,26 @@ export async function createThemeController(
 ): Promise<ThemeController> {
   let mode = initialMode;
   let dispose = await applyLaunchTheme(root, mode, source);
+  // 直前の切替の完了。setMode は await を跨ぐため、直列化しないと後続の呼び出しが
+  // 先行呼び出しの解決前に走り、先行側が後から dispose を上書きして OS 追従の購読が
+  // 解除不能になる（固定テーマを選んだのに OS テーマへ追従し続ける）。
+  let pending: Promise<void> = Promise.resolve();
 
   return {
     getMode: () => mode,
-    async setMode(next: LaunchTheme): Promise<void> {
-      if (next === mode) {
-        return;
-      }
-      dispose(); // 既存購読（system 時）を解除してから切替
-      mode = next;
-      dispose = await applyLaunchTheme(root, mode, source);
+    setMode(next: LaunchTheme): Promise<void> {
+      const result = pending.then(async () => {
+        if (next === mode) {
+          return;
+        }
+        dispose(); // 既存購読（system 時）を解除してから切替
+        mode = next;
+        dispose = await applyLaunchTheme(root, mode, source);
+      });
+      // 失敗を連鎖に残すと以降の切替が全て道連れで reject するため、
+      // 内部の連鎖は解決済みへ均し、例外は呼び出し側にだけ伝える。
+      pending = result.catch(() => undefined);
+      return result;
     },
     dispose: () => {
       dispose();

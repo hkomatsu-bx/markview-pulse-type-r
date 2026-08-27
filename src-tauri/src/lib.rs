@@ -34,8 +34,13 @@ pub fn run() -> tauri::Result<()> {
         }
         let files = commands::cli::extract_md_paths(argv);
         if !files.is_empty() {
-            // フロントは open-files を購読し、各パスをタブで開く。
-            let _ = app.emit("open-files", files);
+            // パスの実体は managed state へ積み、イベントは「取りに来い」の合図に
+            // 留める。フロントが購読を確立する前に届いた転送でも、購読直後の
+            // take_pending_open_files で回収でき、ファイルを取りこぼさない。
+            app.state::<commands::cli::PendingOpenFiles>().push(files);
+            if let Err(e) = app.emit("open-files-pending", ()) {
+                eprintln!("[single-instance] open-files-pending の送出に失敗: {e}");
+            }
         }
     }));
 
@@ -43,13 +48,16 @@ pub fn run() -> tauri::Result<()> {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .manage(WatchManager::new())
+        .manage(commands::cli::PendingOpenFiles::default())
         .invoke_handler(tauri::generate_handler![
             commands::file::read_markdown_file,
             commands::image::read_image_data_uri,
+            commands::print::print_to_pdf,
             commands::watcher::start_watch,
             commands::watcher::stop_watch,
             commands::cli::get_launch_files,
             commands::cli::get_launch_theme,
+            commands::cli::take_pending_open_files,
         ])
         .run(tauri::generate_context!())
 }

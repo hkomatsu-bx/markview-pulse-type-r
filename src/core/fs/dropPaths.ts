@@ -4,26 +4,22 @@
 // 純関数。Rust 側 `extract_md_paths`（CLI 起動）のフロント版に相当する。
 // 大文字小文字を無視し、重複は入力順を保って除去する。
 
-const MARKDOWN_EXTENSIONS: readonly string[] = [".md", ".markdown"];
-
-/** Markdown 拡張子かどうかを判定する（大文字小文字無視）。 */
-function isMarkdownPath(path: string): boolean {
-  const lower = path.toLowerCase();
-  return MARKDOWN_EXTENSIONS.some((ext) => lower.endsWith(ext));
-}
+import { isMarkdownPath, normalizePathKey } from "./markdownPath";
 
 /**
  * ドロップされたパスから Markdown のみを抽出する。
- * 入力順を保持しつつ重複を除去する。
+ * 入力順を保持しつつ重複を除去する。重複判定は正規化キー（大文字小文字・区切り
+ * 文字の差を吸収）で行い、同じファイルを二重に開かないようにする。
  */
 export function filterMarkdownPaths(paths: readonly string[]): string[] {
   const seen = new Set<string>();
   const result: string[] = [];
   for (const path of paths) {
-    if (!isMarkdownPath(path) || seen.has(path)) {
+    const key = normalizePathKey(path);
+    if (!isMarkdownPath(path) || seen.has(key)) {
       continue;
     }
-    seen.add(path);
+    seen.add(key);
     result.push(path);
   }
   return result;

@@ -16,9 +16,12 @@ import process from "node:process";
 
 import { LAUNCH_FILES, prepareFixtures } from "./e2e/helpers/fixtures";
 
+// 既定パスは実際のビルド成果物名に合わせる。バイナリ名の源は Cargo.toml の
+// `name = "mviewr"`（tauri.conf.json の mainBinaryName も同じ）で、productName
+// とは異なる。ここがずれると TAURI_APP_PATH を明示しない限り、存在しない exe を
+// 起動しようとして全 E2E がセッション確立前に落ちる。
 const APP_BINARY =
-  process.env.TAURI_APP_PATH ??
-  "./src-tauri/target/release/markview-pulse-type-r.exe";
+  process.env.TAURI_APP_PATH ?? "./src-tauri/target/release/mviewr.exe";
 const NATIVE_DRIVER = process.env.TAURI_NATIVE_DRIVER;
 
 let tauriDriver: ChildProcess | undefined;
